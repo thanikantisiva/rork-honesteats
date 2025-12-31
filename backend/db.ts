@@ -1,4 +1,4 @@
-import Surreal from 'surrealdb.js';
+import { Surreal } from 'surrealdb';
 
 let db: Surreal | null = null;
 let isConnecting = false;
@@ -32,11 +32,9 @@ export async function getDb(): Promise<Surreal> {
 
     db = new Surreal();
     
-    await db.connect(endpoint, {
-      namespace,
-      database: 'main',
-      auth: token,
-    });
+    await db.connect(endpoint);
+    await db.use({ namespace, database: 'main' });
+    await db.authenticate(token);
 
     console.log('Database connected successfully');
     return db;
