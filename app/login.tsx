@@ -12,15 +12,28 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (phone.length !== 10) {
       Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number');
       return;
     }
 
-    console.log('Sending OTP to:', phone);
-    setShowOtp(true);
-    Alert.alert('OTP Sent', 'Enter 1234 to login (demo)');
+    setIsLoading(true);
+    try {
+      console.log('Requesting OTP for:', phone);
+      await fetch(`${process.env.EXPO_PUBLIC_RORK_API_BASE_URL}/trpc/auth.requestOTP`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: `+91${phone}` }),
+      });
+      setShowOtp(true);
+      Alert.alert('OTP Sent', 'Please check your phone for the OTP');
+    } catch (error) {
+      console.error('Failed to send OTP:', error);
+      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleVerifyOtp = async () => {
@@ -30,7 +43,7 @@ export default function LoginScreen() {
     }
 
     setIsLoading(true);
-    const success = await login(phone, otp);
+    const success = await login(`+91${phone}`, otp);
     setIsLoading(false);
 
     if (success) {

@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDb } from '@/backend/db';
+import { getDynamoClient, TABLES, generateId } from '@/backend/db';
+import { PutCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 export const ordersRouter = createTRPCRouter({
   create: publicProcedure
@@ -39,12 +40,14 @@ export const ordersRouter = createTRPCRouter({
       }),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
 
       const estimatedDeliveryTime = new Date();
       estimatedDeliveryTime.setMinutes(estimatedDeliveryTime.getMinutes() + 35);
 
-      const created = await db.create('orders', {
+      const orderId = generateId();
+      const order = {
+        id: orderId,
         userId: input.userId,
         restaurantId: input.restaurantId,
         restaurantName: input.restaurantName,
@@ -54,10 +57,14 @@ export const ordersRouter = createTRPCRouter({
         deliveryFee: input.deliveryFee,
         status: 'placed',
         deliveryAddress: input.deliveryAddress,
-        estimatedDeliveryTime: estimatedDeliveryTime.toISOString(),
-      });
+        orderDate: Date.now(),
+        estimatedDeliveryTime: estimatedDeliveryTime.getTime(),
+      };
 
-      const order = Array.isArray(created) ? created[0] : created;
+      await db.send(new PutCommand({
+        TableName: TABLES.ORDERS,
+        Item: order,
+      }));
 
       return {
         id: order.id,
@@ -77,16 +84,23 @@ export const ordersRouter = createTRPCRouter({
   list: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
 
-      const orders = await db.query<[any[]]>(
-        'SELECT * FROM orders WHERE userId = $userId ORDER BY orderDate DESC',
-        { userId: input.userId }
-      );
+      const result = await db.send(new QueryCommand({
+        TableName: TABLES.ORDERS,
+        IndexName: 'userId-index',
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': input.userId,
+        },
+      }));
 
-      return (orders[0] || []).map((order: any) => ({
+      const orders = result.Items || [];
+      orders.sort((a: any, b: any) => (b.orderDate || 0) - (a.orderDate || 0));
+
+      return orders.map((order: any) => ({
         id: order.id,
-        restaurantId: typeof order.restaurantId === 'string' ? order.restaurantId : order.restaurantId.id,
+        restaurantId: order.restaurantId,
         restaurantName: order.restaurantName,
         restaurantImage: order.restaurantImage,
         items: order.items,
@@ -102,16 +116,21 @@ export const ordersRouter = createTRPCRouter({
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      const db = await getDb();
-      const order: any = await db.select(input.id);
+      const db = getDynamoClient();
+      
+      const result = await db.send(new GetCommand({
+        TableName: TABLES.ORDERS,
+        Key: { id: input.id },
+      }));
 
+      const order = result.Item;
       if (!order) {
         throw new Error('Order not found');
       }
 
       return {
         id: order.id,
-        restaurantId: typeof order.restaurantId === 'string' ? order.restaurantId : order.restaurantId.id,
+        restaurantId: order.restaurantId,
         restaurantName: order.restaurantName,
         restaurantImage: order.restaurantImage,
         items: order.items,
@@ -130,17 +149,23 @@ export const ordersRouter = createTRPCRouter({
       status: z.enum(['placed', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
       
-      const updated = await db.merge(input.id, {
-        status: input.status,
-      });
-
-      const order = Array.isArray(updated) ? updated[0] : updated;
+      await db.send(new UpdateCommand({
+        TableName: TABLES.ORDERS,
+        Key: { id: input.id },
+        UpdateExpression: 'SET #status = :status',
+        ExpressionAttributeNames: {
+          '#status': 'status',
+        },
+        ExpressionAttributeValues: {
+          ':status': input.status,
+        },
+      }));
 
       return {
-        id: order.id,
-        status: order.status,
+        id: input.id,
+        status: input.status,
       };
     }),
 });

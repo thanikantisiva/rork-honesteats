@@ -1,10 +1,12 @@
-import { getDb, initializeSchema } from './db';
+import { getDynamoClient, TABLES, generateId } from './db';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
 
 export async function seedRestaurants() {
-  const db = await getDb();
+  const db = getDynamoClient();
 
   const restaurants = [
     {
+      id: generateId(),
       name: 'Spice Junction',
       image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800',
       cuisine: ['North Indian', 'Chinese', 'Tandoor'],
@@ -16,8 +18,10 @@ export async function seedRestaurants() {
       distance: '2.1 km',
       isPureVeg: false,
       offers: ['50% off up to ₹100', 'Free delivery above ₹199'],
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       name: 'Dosa Palace',
       image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800',
       cuisine: ['South Indian', 'Breakfast'],
@@ -29,8 +33,10 @@ export async function seedRestaurants() {
       distance: '1.5 km',
       isPureVeg: true,
       offers: ['40% off up to ₹80'],
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       name: 'Pizza Hub',
       image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800',
       cuisine: ['Italian', 'Pizza', 'Fast Food'],
@@ -42,8 +48,10 @@ export async function seedRestaurants() {
       distance: '3.2 km',
       isPureVeg: false,
       offers: ['Buy 1 Get 1 Free'],
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       name: 'Biryani House',
       image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800',
       cuisine: ['Biryani', 'Mughlai', 'North Indian'],
@@ -55,8 +63,10 @@ export async function seedRestaurants() {
       distance: '4.0 km',
       isPureVeg: false,
       offers: ['Free dessert on orders above ₹399'],
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       name: 'Healthy Bowl',
       image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800',
       cuisine: ['Healthy', 'Salads', 'Continental'],
@@ -68,8 +78,10 @@ export async function seedRestaurants() {
       distance: '1.8 km',
       isPureVeg: true,
       offers: ['20% off on first order'],
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       name: 'Burger King',
       image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=800',
       cuisine: ['Burgers', 'Fast Food', 'American'],
@@ -81,21 +93,27 @@ export async function seedRestaurants() {
       distance: '2.5 km',
       isPureVeg: false,
       offers: ['2 Whoppers at ₹299'],
+      createdAt: Date.now(),
     },
   ];
 
   for (const restaurant of restaurants) {
-    await db.create('restaurants', restaurant);
+    await db.send(new PutCommand({
+      TableName: TABLES.RESTAURANTS,
+      Item: restaurant,
+    }));
   }
 
   console.log(`Seeded ${restaurants.length} restaurants`);
+  return restaurants;
 }
 
 export async function seedMenuItems(restaurantId: string) {
-  const db = await getDb();
+  const db = getDynamoClient();
 
   const menuItems = [
     {
+      id: generateId(),
       restaurantId,
       name: 'Paneer Butter Masala',
       description: 'Rich and creamy paneer curry with butter and spices',
@@ -104,8 +122,10 @@ export async function seedMenuItems(restaurantId: string) {
       isVeg: true,
       rating: 4.5,
       isAvailable: true,
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       restaurantId,
       name: 'Chicken Tikka Masala',
       description: 'Grilled chicken in creamy tomato curry',
@@ -114,8 +134,10 @@ export async function seedMenuItems(restaurantId: string) {
       isVeg: false,
       rating: 4.6,
       isAvailable: true,
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       restaurantId,
       name: 'Garlic Naan',
       description: 'Fresh naan bread with garlic and butter',
@@ -124,8 +146,10 @@ export async function seedMenuItems(restaurantId: string) {
       isVeg: true,
       rating: 4.4,
       isAvailable: true,
+      createdAt: Date.now(),
     },
     {
+      id: generateId(),
       restaurantId,
       name: 'Veg Biryani',
       description: 'Fragrant rice with mixed vegetables and spices',
@@ -134,11 +158,15 @@ export async function seedMenuItems(restaurantId: string) {
       isVeg: true,
       rating: 4.3,
       isAvailable: true,
+      createdAt: Date.now(),
     },
   ];
 
   for (const item of menuItems) {
-    await db.create('menuItems', item);
+    await db.send(new PutCommand({
+      TableName: TABLES.MENU_ITEMS,
+      Item: item,
+    }));
   }
 
   console.log(`Seeded ${menuItems.length} menu items for restaurant ${restaurantId}`);
@@ -146,13 +174,15 @@ export async function seedMenuItems(restaurantId: string) {
 
 export async function runSeed() {
   try {
-    await initializeSchema();
-    await seedRestaurants();
+    const restaurants = await seedRestaurants();
+    
+    for (const restaurant of restaurants) {
+      await seedMenuItems(restaurant.id);
+    }
+    
     console.log('Seed completed successfully');
   } catch (error) {
     console.error('Seed failed:', error);
     throw error;
   }
 }
-
-export { initializeSchema };

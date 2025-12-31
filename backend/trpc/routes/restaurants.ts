@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDb } from '@/backend/db';
+import { getDynamoClient, TABLES } from '@/backend/db';
+import { GetCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 
 export const restaurantsRouter = createTRPCRouter({
   list: publicProcedure
@@ -8,12 +9,13 @@ export const restaurantsRouter = createTRPCRouter({
       search: z.string().optional(),
     }).optional())
     .query(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
       
-      let query = 'SELECT * FROM restaurants ORDER BY rating DESC';
-      const restaurants = await db.query<[any[]]>(query);
+      const result = await db.send(new ScanCommand({
+        TableName: TABLES.RESTAURANTS,
+      }));
 
-      let results = restaurants[0] || [];
+      let results = result.Items || [];
 
       if (input?.search) {
         const searchLower = input.search.toLowerCase();
@@ -22,6 +24,8 @@ export const restaurantsRouter = createTRPCRouter({
           r.cuisine.some((c: string) => c.toLowerCase().includes(searchLower))
         );
       }
+
+      results.sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
 
       return results.map((r: any) => ({
         id: r.id,
@@ -42,9 +46,14 @@ export const restaurantsRouter = createTRPCRouter({
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      const db = await getDb();
-      const restaurant: any = await db.select(input.id);
+      const db = getDynamoClient();
+      
+      const result = await db.send(new GetCommand({
+        TableName: TABLES.RESTAURANTS,
+        Key: { id: input.id },
+      }));
 
+      const restaurant = result.Item;
       if (!restaurant) {
         throw new Error('Restaurant not found');
       }
@@ -68,16 +77,20 @@ export const restaurantsRouter = createTRPCRouter({
   getMenuItems: publicProcedure
     .input(z.object({ restaurantId: z.string() }))
     .query(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
       
-      const menuItems = await db.query<[any[]]>(
-        'SELECT * FROM menuItems WHERE restaurantId = $restaurantId',
-        { restaurantId: input.restaurantId }
-      );
+      const result = await db.send(new QueryCommand({
+        TableName: TABLES.MENU_ITEMS,
+        IndexName: 'restaurantId-index',
+        KeyConditionExpression: 'restaurantId = :restaurantId',
+        ExpressionAttributeValues: {
+          ':restaurantId': input.restaurantId,
+        },
+      }));
 
-      return (menuItems[0] || []).map((item: any) => ({
+      return (result.Items || []).map((item: any) => ({
         id: item.id,
-        restaurantId: typeof item.restaurantId === 'string' ? item.restaurantId : item.restaurantId.id,
+        restaurantId: item.restaurantId,
         name: item.name,
         description: item.description,
         price: item.price,

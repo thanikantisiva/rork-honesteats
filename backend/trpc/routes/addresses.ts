@@ -1,19 +1,27 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDb } from '@/backend/db';
+import { getDynamoClient, TABLES, generateId } from '@/backend/db';
+import { PutCommand, GetCommand, QueryCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 
 export const addressesRouter = createTRPCRouter({
   list: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
       
-      const addresses = await db.query<[any[]]>(
-        'SELECT * FROM addresses WHERE userId = $userId ORDER BY createdAt DESC',
-        { userId: input.userId }
-      );
+      const result = await db.send(new QueryCommand({
+        TableName: TABLES.ADDRESSES,
+        IndexName: 'userId-index',
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: {
+          ':userId': input.userId,
+        },
+      }));
 
-      return (addresses[0] || []).map((addr: any) => ({
+      const addresses = result.Items || [];
+      addresses.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      return addresses.map((addr: any) => ({
         id: addr.id,
         type: addr.type,
         nickname: addr.nickname,
@@ -37,9 +45,11 @@ export const addressesRouter = createTRPCRouter({
       lng: z.number(),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
 
-      const created = await db.create('addresses', {
+      const addressId = generateId();
+      const addr = {
+        id: addressId,
         userId: input.userId,
         type: input.type,
         nickname: input.nickname,
@@ -47,9 +57,13 @@ export const addressesRouter = createTRPCRouter({
         landmark: input.landmark,
         lat: input.lat,
         lng: input.lng,
-      });
+        createdAt: Date.now(),
+      };
 
-      const addr = Array.isArray(created) ? created[0] : created;
+      await db.send(new PutCommand({
+        TableName: TABLES.ADDRESSES,
+        Item: addr,
+      }));
 
       return {
         id: addr.id,
@@ -75,11 +89,61 @@ export const addressesRouter = createTRPCRouter({
       lng: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
       const { id, ...updates } = input;
 
-      const updated = await db.merge(id, updates);
-      const addr = Array.isArray(updated) ? updated[0] : updated;
+      const updateExpression: string[] = [];
+      const expressionAttributeNames: Record<string, string> = {};
+      const expressionAttributeValues: Record<string, any> = {};
+
+      if (updates.type) {
+        updateExpression.push('#type = :type');
+        expressionAttributeNames['#type'] = 'type';
+        expressionAttributeValues[':type'] = updates.type;
+      }
+      if (updates.nickname !== undefined) {
+        updateExpression.push('#nickname = :nickname');
+        expressionAttributeNames['#nickname'] = 'nickname';
+        expressionAttributeValues[':nickname'] = updates.nickname;
+      }
+      if (updates.address) {
+        updateExpression.push('#address = :address');
+        expressionAttributeNames['#address'] = 'address';
+        expressionAttributeValues[':address'] = updates.address;
+      }
+      if (updates.landmark !== undefined) {
+        updateExpression.push('#landmark = :landmark');
+        expressionAttributeNames['#landmark'] = 'landmark';
+        expressionAttributeValues[':landmark'] = updates.landmark;
+      }
+      if (updates.lat) {
+        updateExpression.push('#lat = :lat');
+        expressionAttributeNames['#lat'] = 'lat';
+        expressionAttributeValues[':lat'] = updates.lat;
+      }
+      if (updates.lng) {
+        updateExpression.push('#lng = :lng');
+        expressionAttributeNames['#lng'] = 'lng';
+        expressionAttributeValues[':lng'] = updates.lng;
+      }
+
+      await db.send(new UpdateCommand({
+        TableName: TABLES.ADDRESSES,
+        Key: { id },
+        UpdateExpression: `SET ${updateExpression.join(', ')}`,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+      }));
+
+      const result = await db.send(new GetCommand({
+        TableName: TABLES.ADDRESSES,
+        Key: { id },
+      }));
+
+      const addr = result.Item;
+      if (!addr) {
+        throw new Error('Address not found');
+      }
 
       return {
         id: addr.id,
@@ -97,8 +161,11 @@ export const addressesRouter = createTRPCRouter({
   delete: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
-      await db.delete(input.id);
+      const db = getDynamoClient();
+      await db.send(new DeleteCommand({
+        TableName: TABLES.ADDRESSES,
+        Key: { id: input.id },
+      }));
       return { success: true };
     }),
 });

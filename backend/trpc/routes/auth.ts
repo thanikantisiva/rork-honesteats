@@ -1,8 +1,19 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDb } from '@/backend/db';
+import { getDynamoClient, TABLES, sendOTP, verifyOTP, generateId } from '@/backend/db';
+import { PutCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 export const authRouter = createTRPCRouter({
+  requestOTP: publicProcedure
+    .input(z.object({ 
+      phone: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      console.log('OTP requested for:', input.phone);
+      await sendOTP(input.phone);
+      return { success: true };
+    }),
+
   login: publicProcedure
     .input(z.object({ 
       phone: z.string(),
@@ -10,26 +21,38 @@ export const authRouter = createTRPCRouter({
     }))
     .mutation(async ({ input }) => {
       console.log('Login attempt:', input);
-      const db = await getDb();
+      const db = getDynamoClient();
 
-      if (input.otp !== '1234') {
-        throw new Error('Invalid OTP');
+      const isValid = await verifyOTP(input.phone, input.otp);
+      if (!isValid) {
+        throw new Error('Invalid or expired OTP');
       }
 
-      const existingUsers = await db.query<[{ id: string; phone: string; name: string; email?: string }[]]>(
-        'SELECT * FROM users WHERE phone = $phone',
-        { phone: input.phone }
-      );
+      const result = await db.send(new QueryCommand({
+        TableName: TABLES.USERS,
+        IndexName: 'phone-index',
+        KeyConditionExpression: 'phone = :phone',
+        ExpressionAttributeValues: {
+          ':phone': input.phone,
+        },
+      }));
 
       let user;
-      if (existingUsers[0] && existingUsers[0].length > 0) {
-        user = existingUsers[0][0];
+      if (result.Items && result.Items.length > 0) {
+        user = result.Items[0];
       } else {
-        const newUser = await db.create('users', {
+        const userId = generateId();
+        user = {
+          id: userId,
           phone: input.phone,
           name: 'User',
-        });
-        user = Array.isArray(newUser) ? newUser[0] : newUser;
+          createdAt: Date.now(),
+        };
+        
+        await db.send(new PutCommand({
+          TableName: TABLES.USERS,
+          Item: user,
+        }));
       }
 
       return {
@@ -50,11 +73,41 @@ export const authRouter = createTRPCRouter({
       email: z.string().email().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
+      const db = getDynamoClient();
       const { userId, ...updates } = input;
 
-      const updated = await db.merge(userId, updates);
-      const user: any = Array.isArray(updated) ? updated[0] : updated;
+      const updateExpression: string[] = [];
+      const expressionAttributeNames: Record<string, string> = {};
+      const expressionAttributeValues: Record<string, any> = {};
+
+      if (updates.name) {
+        updateExpression.push('#name = :name');
+        expressionAttributeNames['#name'] = 'name';
+        expressionAttributeValues[':name'] = updates.name;
+      }
+      if (updates.email) {
+        updateExpression.push('#email = :email');
+        expressionAttributeNames['#email'] = 'email';
+        expressionAttributeValues[':email'] = updates.email;
+      }
+
+      await db.send(new UpdateCommand({
+        TableName: TABLES.USERS,
+        Key: { id: userId },
+        UpdateExpression: `SET ${updateExpression.join(', ')}`,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+      }));
+
+      const result = await db.send(new GetCommand({
+        TableName: TABLES.USERS,
+        Key: { id: userId },
+      }));
+
+      const user = result.Item;
+      if (!user) {
+        throw new Error('User not found');
+      }
 
       return {
         id: user.id,
@@ -67,9 +120,14 @@ export const authRouter = createTRPCRouter({
   getProfile: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
-      const db = await getDb();
-      const user: any = await db.select(input.userId);
+      const db = getDynamoClient();
+      
+      const result = await db.send(new GetCommand({
+        TableName: TABLES.USERS,
+        Key: { id: input.userId },
+      }));
 
+      const user = result.Item;
       if (!user) {
         throw new Error('User not found');
       }

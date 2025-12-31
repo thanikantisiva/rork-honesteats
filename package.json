@@ -9,6 +9,9 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.958.0",
+    "@aws-sdk/client-sns": "^3.958.0",
+    "@aws-sdk/lib-dynamodb": "^3.958.0",
     "@expo/vector-icons": "^15.0.3",
     "@hono/trpc-server": "^0.4.1",
     "@nkzw/create-context-hook": "^1.1.0",
