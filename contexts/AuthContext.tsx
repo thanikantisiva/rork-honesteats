@@ -38,11 +38,14 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     }
   };
 
-  const login = async (phone: string, otp: string): Promise<boolean> => {
-    console.log('Login attempt:', { phone, otp });
+  const loginWithFirebase = async (phone: string, firebaseToken: string): Promise<boolean> => {
+    console.log('Firebase login attempt:', { phone });
     
     try {
-      const result = await loginMutation.mutateAsync({ phone, otp });
+      const result = await loginMutation.mutateAsync({ 
+        phone, 
+        firebaseToken 
+      });
       
       const newUser: User = {
         id: String(result.user.id),
@@ -104,7 +107,7 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     token,
     isLoading,
     isAuthenticated: !!user,
-    login,
+    loginWithFirebase,
     logout,
     updateProfile,
   };

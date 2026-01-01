@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, Auth, RecaptchaVerifier } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB0ZDkqIEvfg5ln892LI9cCZL0MScuqzUI",
@@ -20,3 +20,4 @@ if (getApps().length === 0) {
 }
 
 export { auth };
+export { RecaptchaVerifier };

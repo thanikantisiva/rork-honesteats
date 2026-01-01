@@ -3,79 +3,45 @@ import { createTRPCRouter, publicProcedure } from '../create-context';
 import { getDynamoClient, TABLES } from '@/backend/db';
 import { GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
-const MOCK_OTP_MODE = true;
-const MOCK_OTP = '1234';
-
 export const authRouter = createTRPCRouter({
-  requestOTP: publicProcedure
-    .input(z.object({ 
-      phone: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      console.log('OTP requested for:', input.phone);
-      
-      if (MOCK_OTP_MODE) {
-        console.log(`MOCK MODE: OTP is ${MOCK_OTP}`);
-        return { success: true };
-      }
-      
-      try {
-        console.log('Sending OTP via Firebase to:', input.phone);
-        return { success: true, message: 'Firebase OTP requires client-side reCAPTCHA' };
-      } catch (error) {
-        console.error('Failed to send OTP:', error);
-        throw new Error('Failed to send OTP. Please check your network connection.');
-      }
-    }),
-
   login: publicProcedure
     .input(z.object({ 
       phone: z.string(),
-      otp: z.string(),
-      verificationId: z.string().optional(),
+      firebaseToken: z.string(),
     }))
     .mutation(async ({ input }) => {
-      console.log('Login attempt:', input);
+      console.log('Login with Firebase token for:', input.phone);
       
-      if (MOCK_OTP_MODE) {
-        if (input.otp === MOCK_OTP) {
-          console.log('MOCK MODE: Login successful');
-          const mockUserId = `mock-${input.phone.replace(/\+/g, '')}`;
-          
-          const db = getDynamoClient();
-          const existingUser = await db.send(new GetCommand({
-            TableName: TABLES.USERS,
-            Key: { id: mockUserId },
-          }));
-          
-          if (!existingUser.Item) {
-            await db.send(new PutCommand({
-              TableName: TABLES.USERS,
-              Item: {
-                id: mockUserId,
-                phone: input.phone,
-                name: 'Test User',
-                email: null,
-                createdAt: new Date().toISOString(),
-              },
-            }));
-          }
-          
-          return {
-            user: {
-              id: mockUserId,
-              phone: input.phone,
-              name: existingUser.Item?.name || 'Test User',
-              email: existingUser.Item?.email || null,
-            },
-            token: mockUserId,
-          };
-        } else {
-          throw new Error('Invalid OTP. Use 1234 for testing.');
-        }
+      const userId = `user-${input.phone.replace(/\+/g, '')}`;
+      
+      const db = getDynamoClient();
+      const existingUser = await db.send(new GetCommand({
+        TableName: TABLES.USERS,
+        Key: { id: userId },
+      }));
+      
+      if (!existingUser.Item) {
+        await db.send(new PutCommand({
+          TableName: TABLES.USERS,
+          Item: {
+            id: userId,
+            phone: input.phone,
+            name: 'User',
+            email: null,
+            createdAt: new Date().toISOString(),
+          },
+        }));
       }
       
-      throw new Error('Firebase phone auth requires client-side verification. Please use MOCK_OTP_MODE.');
+      return {
+        user: {
+          id: userId,
+          phone: input.phone,
+          name: existingUser.Item?.name || 'User',
+          email: existingUser.Item?.email || null,
+        },
+        token: userId,
+      };
     }),
 
   updateProfile: publicProcedure

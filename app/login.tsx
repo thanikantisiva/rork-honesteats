@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Phone } from 'lucide-react-native';
-import { trpc } from '@/lib/trpc';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { auth } from '@/lib/firebase';
+import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationId, setVerificationId] = useState<string>('');
   const router = useRouter();
-  const { login } = useAuth();
-  const requestOTPMutation = trpc.auth.requestOTP.useMutation();
+  const { loginWithFirebase } = useAuth();
+  const recaptchaVerifier = useRef<any>(null);
 
   const handleSendOtp = async () => {
     if (phone.length !== 10) {
@@ -22,13 +25,21 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      console.log('Requesting OTP for:', phone);
-      await requestOTPMutation.mutateAsync({ phone: `+91${phone}` });
+      const phoneNumber = `+91${phone}`;
+      console.log('Sending OTP to:', phoneNumber);
+      
+      const phoneProvider = new PhoneAuthProvider(auth);
+      const verificationIdResult = await phoneProvider.verifyPhoneNumber(
+        phoneNumber,
+        recaptchaVerifier.current
+      );
+      
+      setVerificationId(verificationIdResult);
       setShowOtp(true);
       Alert.alert('OTP Sent', 'Please check your phone for the 6-digit OTP');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send OTP:', error);
-      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -41,17 +52,33 @@ export default function LoginScreen() {
     }
 
     setIsLoading(true);
-    const success = await login(`+91${phone}`, otp);
-    setIsLoading(false);
-
-    if (success) {
-      router.replace('/(tabs)');
-    } else {
-      Alert.alert('Invalid OTP', 'Please enter the correct OTP');
+    try {
+      const credential = PhoneAuthProvider.credential(verificationId, otp);
+      const result = await signInWithCredential(auth, credential);
+      
+      const idToken = await result.user.getIdToken();
+      const success = await loginWithFirebase(`+91${phone}`, idToken);
+      
+      if (success) {
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Login Failed', 'Failed to complete login');
+      }
+    } catch (error: any) {
+      console.error('Verification failed:', error);
+      Alert.alert('Invalid OTP', error.message || 'Please enter the correct OTP');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
+    <>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+        attemptInvisibleVerification={Platform.OS === 'ios'}
+      />
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
@@ -116,6 +143,7 @@ export default function LoginScreen() {
         </Text>
       </View>
     </KeyboardAvoidingView>
+    </>
   );
 }
 
