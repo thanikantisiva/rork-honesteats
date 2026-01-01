@@ -25,7 +25,7 @@ export default function LoginScreen() {
       console.log('Requesting OTP for:', phone);
       await requestOTPMutation.mutateAsync({ phone: `+91${phone}` });
       setShowOtp(true);
-      Alert.alert('OTP Sent', 'Please check your phone for the OTP (use 1234 for testing)');
+      Alert.alert('OTP Sent', 'Please check your phone for the 6-digit OTP');
     } catch (error) {
       console.error('Failed to send OTP:', error);
       Alert.alert('Error', 'Failed to send OTP. Please try again.');
@@ -35,8 +35,8 @@ export default function LoginScreen() {
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length !== 4) {
-      Alert.alert('Invalid OTP', 'Please enter a 4-digit OTP');
+    if (otp.length !== 6) {
+      Alert.alert('Invalid OTP', 'Please enter a 6-digit OTP');
       return;
     }
 
@@ -87,9 +87,9 @@ export default function LoginScreen() {
               <Text style={styles.label}>Enter OTP</Text>
               <TextInput
                 style={styles.otpInput}
-                placeholder="1234"
+                placeholder="123456"
                 keyboardType="number-pad"
-                maxLength={4}
+                maxLength={6}
                 value={otp}
                 onChangeText={setOtp}
                 autoFocus
