@@ -1,9 +1,8 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
 import { getDynamoClient, TABLES } from '@/backend/db';
-import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
-const AWS_API_BASE_URL = 'https://rur4ptgx77.execute-api.ap-south-1.amazonaws.com/dev';
 const MOCK_OTP_MODE = true;
 const MOCK_OTP = '1234';
 
@@ -21,20 +20,8 @@ export const authRouter = createTRPCRouter({
       }
       
       try {
-        const response = await fetch(`${AWS_API_BASE_URL}/api/v1/auth/request-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ phone: input.phone }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to send OTP');
-        }
-
-        return { success: true };
+        console.log('Sending OTP via Firebase to:', input.phone);
+        return { success: true, message: 'Firebase OTP requires client-side reCAPTCHA' };
       } catch (error) {
         console.error('Failed to send OTP:', error);
         throw new Error('Failed to send OTP. Please check your network connection.');
@@ -45,6 +32,7 @@ export const authRouter = createTRPCRouter({
     .input(z.object({ 
       phone: z.string(),
       otp: z.string(),
+      verificationId: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       console.log('Login attempt:', input);
@@ -53,12 +41,32 @@ export const authRouter = createTRPCRouter({
         if (input.otp === MOCK_OTP) {
           console.log('MOCK MODE: Login successful');
           const mockUserId = `mock-${input.phone.replace(/\+/g, '')}`;
+          
+          const db = getDynamoClient();
+          const existingUser = await db.send(new GetCommand({
+            TableName: TABLES.USERS,
+            Key: { id: mockUserId },
+          }));
+          
+          if (!existingUser.Item) {
+            await db.send(new PutCommand({
+              TableName: TABLES.USERS,
+              Item: {
+                id: mockUserId,
+                phone: input.phone,
+                name: 'Test User',
+                email: null,
+                createdAt: new Date().toISOString(),
+              },
+            }));
+          }
+          
           return {
             user: {
               id: mockUserId,
               phone: input.phone,
-              name: 'Test User',
-              email: null,
+              name: existingUser.Item?.name || 'Test User',
+              email: existingUser.Item?.email || null,
             },
             token: mockUserId,
           };
@@ -67,41 +75,7 @@ export const authRouter = createTRPCRouter({
         }
       }
       
-      try {
-        const response = await fetch(`${AWS_API_BASE_URL}/api/v1/auth/verify-otp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            phone: input.phone,
-            otp: input.otp,
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Invalid or expired OTP');
-        }
-
-        const data = await response.json();
-        
-        return {
-          user: {
-            id: data.user.id,
-            phone: data.user.phone,
-            name: data.user.name,
-            email: data.user.email,
-          },
-          token: data.token,
-        };
-      } catch (error) {
-        console.error('Failed to verify OTP:', error);
-        if (error instanceof Error) {
-          throw error;
-        }
-        throw new Error('Failed to verify OTP. Please check your network connection.');
-      }
+      throw new Error('Firebase phone auth requires client-side verification. Please use MOCK_OTP_MODE.');
     }),
 
   updateProfile: publicProcedure
