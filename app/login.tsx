@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvo
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Phone } from 'lucide-react-native';
+import { trpc } from '@/lib/trpc';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -11,6 +12,7 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
+  const requestOTPMutation = trpc.auth.requestOTP.useMutation();
 
   const handleSendOtp = async () => {
     if (phone.length !== 10) {
@@ -21,13 +23,9 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       console.log('Requesting OTP for:', phone);
-      await fetch(`${process.env.EXPO_PUBLIC_RORK_API_BASE_URL}/trpc/auth.requestOTP`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `+91${phone}` }),
-      });
+      await requestOTPMutation.mutateAsync({ phone: `+91${phone}` });
       setShowOtp(true);
-      Alert.alert('OTP Sent', 'Please check your phone for the OTP');
+      Alert.alert('OTP Sent', 'Please check your phone for the OTP (use 1234 for testing)');
     } catch (error) {
       console.error('Failed to send OTP:', error);
       Alert.alert('Error', 'Failed to send OTP. Please try again.');
