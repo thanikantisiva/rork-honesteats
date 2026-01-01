@@ -53,20 +53,30 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
+      console.log('Step 1: Verifying OTP with Firebase...');
       const credential = PhoneAuthProvider.credential(verificationId, otp);
       const result = await signInWithCredential(auth, credential);
+      console.log('Step 2: Firebase authentication successful');
       
+      console.log('Step 3: Getting Firebase ID token...');
       const idToken = await result.user.getIdToken();
+      console.log('Step 4: Firebase ID token obtained');
+      
+      console.log('Step 5: Calling backend login...');
       const success = await loginWithFirebase(`+91${phone}`, idToken);
+      console.log('Step 6: Backend login result:', success);
       
       if (success) {
+        console.log('Step 7: Login successful, navigating to home');
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Login Failed', 'Failed to complete login');
+        console.log('Step 7: Backend login returned false');
+        Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
       }
     } catch (error: any) {
-      console.error('Verification failed:', error);
-      Alert.alert('Invalid OTP', error.message || 'Please enter the correct OTP');
+      console.error('Verification failed at some step:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      Alert.alert('Login Failed', error.message || 'Please try again');
     } finally {
       setIsLoading(false);
     }

@@ -42,10 +42,12 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     console.log('Firebase login attempt:', { phone });
     
     try {
+      console.log('Calling tRPC login mutation...');
       const result = await loginMutation.mutateAsync({ 
         phone, 
         firebaseToken 
       });
+      console.log('tRPC login mutation succeeded:', result);
       
       const newUser: User = {
         id: String(result.user.id),
@@ -54,16 +56,22 @@ export const [AuthContext, useAuth] = createContextHook(() => {
         email: result.user.email as string | undefined,
       };
       
+      console.log('Saving user to AsyncStorage...');
       await Promise.all([
         AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser)),
         AsyncStorage.setItem(TOKEN_STORAGE_KEY, String(result.token)),
       ]);
+      console.log('User saved to AsyncStorage');
       
       setUser(newUser);
       setToken(String(result.token));
+      console.log('Login completed successfully');
       return true;
-    } catch (error) {
-      console.error('Login failed:', error);
+    } catch (error: any) {
+      console.error('Login failed with error:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error data:', error?.data);
+      console.error('Full error:', JSON.stringify(error, null, 2));
       return false;
     }
   };
