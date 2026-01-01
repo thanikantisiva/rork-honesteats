@@ -23,10 +23,10 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === 'login';
+    const inAuthGroup = segments[0] === 'login' as string;
 
     if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/login');
+      router.replace('/login' as any);
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
     }

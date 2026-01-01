@@ -36,7 +36,7 @@ export default function CheckoutScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.replace('/(tabs)/orders'),
+            onPress: () => router.replace('/(tabs)/orders' as any),
           },
         ]
       );
@@ -64,7 +64,7 @@ export default function CheckoutScreen() {
               <TouchableOpacity 
                 style={styles.addressCard} 
                 activeOpacity={0.7}
-                onPress={() => router.push('/addresses')}
+                onPress={() => router.push('/addresses' as any)}
               >
                 <MapPin size={20} color="#EF4444" />
                 <View style={styles.addressInfo}>
@@ -78,7 +78,7 @@ export default function CheckoutScreen() {
             ) : (
               <TouchableOpacity
                 style={styles.addAddressCard}
-                onPress={() => router.push('/addresses')}
+                onPress={() => router.push('/addresses' as any)}
                 activeOpacity={0.7}
               >
                 <MapPin size={20} color="#6B7280" />

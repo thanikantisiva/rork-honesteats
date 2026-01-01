@@ -8,7 +8,7 @@ export default function CartScreen() {
   const { items, addItem, removeItem, clearCart, subtotal, deliveryFee, total, restaurant } = useCart();
 
   const handleCheckout = () => {
-    router.push('/checkout');
+    router.push('/checkout' as any);
   };
 
   const handleClearCart = () => {

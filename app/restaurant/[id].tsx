@@ -45,7 +45,7 @@ export default function RestaurantScreen() {
   };
 
   const handleViewCart = () => {
-    router.push('/cart');
+    router.push('/cart' as any);
   };
 
   return (

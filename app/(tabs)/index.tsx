@@ -18,7 +18,7 @@ export default function HomeScreen() {
   );
 
   const handleRestaurantPress = (restaurant: Restaurant) => {
-    router.push(`/restaurant/${restaurant.id}`);
+    router.push(`/restaurant/${restaurant.id}` as any);
   };
 
   const handleAddressSelect = async (addressId: string) => {
@@ -28,7 +28,7 @@ export default function HomeScreen() {
 
   const handleAddNewAddress = () => {
     setShowAddressModal(false);
-    router.push('/edit-address');
+    router.push('/edit-address' as any);
   };
 
   return (

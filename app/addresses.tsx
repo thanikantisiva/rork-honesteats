@@ -40,7 +40,7 @@ export default function AddressesScreen() {
   };
 
   const handleEditAddress = (address: Address) => {
-    router.push({ pathname: '/edit-address', params: { id: address.id } });
+    router.push({ pathname: '/edit-address' as any, params: { id: address.id } });
   };
 
   const getAddressIcon = (type: Address['type']) => {
@@ -119,7 +119,7 @@ export default function AddressesScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push({ pathname: '/edit-address' })}
+            onPress={() => router.push({ pathname: '/edit-address' as any })}
             activeOpacity={0.8}
           >
             <Plus size={20} color="#FFFFFF" />

@@ -18,7 +18,7 @@ export default function AccountScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            router.replace('/login');
+            router.replace('/login' as any);
           },
         },
       ]
@@ -27,7 +27,7 @@ export default function AccountScreen() {
 
   const menuItems = [
     { icon: User, label: 'Profile', onPress: () => console.log('Profile') },
-    { icon: MapPin, label: 'Addresses', onPress: () => router.push('/addresses') },
+    { icon: MapPin, label: 'Addresses', onPress: () => router.push('/addresses' as any) },
     { icon: Heart, label: 'Favorites', onPress: () => console.log('Favorites') },
     { icon: CreditCard, label: 'Payment Methods', onPress: () => console.log('Payments') },
     { icon: HelpCircle, label: 'Help & Support', onPress: () => console.log('Help') },
