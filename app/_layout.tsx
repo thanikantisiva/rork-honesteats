@@ -25,8 +25,9 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === 'login' as string;
+    const inUserDetails = segments[0] === 'user-details' as string;
 
-    if (!isAuthenticated && !inAuthGroup) {
+    if (!isAuthenticated && !inAuthGroup && !inUserDetails) {
       router.replace('/login' as any);
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
@@ -37,6 +38,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="user-details" options={{ headerShown: false }} />
       <Stack.Screen name="restaurant/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="cart" options={{ headerShown: false }} />
       <Stack.Screen name="checkout" options={{ headerShown: false }} />

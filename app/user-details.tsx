@@ -8,6 +8,7 @@ export default function UserDetailsScreen() {
   const { phone } = useLocalSearchParams<{ phone: string }>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [dob, setDob] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { completeRegistration } = useAuth();
@@ -66,6 +67,18 @@ export default function UserDetailsScreen() {
               onChangeText={setName}
               autoFocus
               autoCapitalize="words"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Date of Birth (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="DD/MM/YYYY"
+              keyboardType="number-pad"
+              value={dob}
+              onChangeText={setDob}
+              maxLength={10}
             />
           </View>
 
