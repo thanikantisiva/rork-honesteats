@@ -7,7 +7,7 @@ import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { auth, firebaseConfig } from '@/lib/firebase';
 import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
