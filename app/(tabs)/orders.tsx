@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { useOrders } from '@/contexts/OrdersContext';
 import React from 'react';
+import { router } from 'expo-router';
 import { MapPin } from 'lucide-react-native';
 import { Order } from '@/types';
 
@@ -81,7 +82,12 @@ export default function OrdersScreen() {
     >
       <View style={styles.content}>
         {orders.map((order) => (
-          <TouchableOpacity key={order.id} style={styles.orderCard} activeOpacity={0.7}>
+          <TouchableOpacity 
+            key={order.id} 
+            style={styles.orderCard} 
+            activeOpacity={0.7}
+            onPress={() => router.push(`/order-details?orderId=${order.id}`)}
+          >
             <View style={styles.orderHeader}>
               <Image source={{ uri: order.restaurantImage }} style={styles.restaurantImage} />
               <View style={styles.orderHeaderInfo}>
