@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Phone } from 'lucide-react-native';
@@ -7,20 +7,14 @@ import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { auth, firebaseConfig } from '@/lib/firebase';
 import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 
+const TEST_MODE = true;
+
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [showOtp, setShowOtp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [verificationId, setVerificationId] = useState<string>('');
-  const [testMode, setTestMode] = useState(false);
-
-  const handleTestModeToggle = (value: boolean) => {
-    setTestMode(value);
-    setShowOtp(false);
-    setOtp('');
-    setVerificationId('');
-  };
   const router = useRouter();
   const { loginWithFirebase } = useAuth();
   const recaptchaVerifier = useRef<any>(null);
@@ -31,9 +25,9 @@ export default function LoginScreen() {
       return;
     }
 
-    if (testMode) {
+    if (TEST_MODE) {
+      console.log('Test mode: Skipping Firebase, use OTP: 123456');
       setShowOtp(true);
-      Alert.alert('Test Mode', 'Use OTP: 123456');
       return;
     }
 
@@ -48,6 +42,7 @@ export default function LoginScreen() {
         recaptchaVerifier.current
       );
       
+      console.log('OTP sent successfully');
       setVerificationId(verificationIdResult);
       setShowOtp(true);
       Alert.alert('OTP Sent', 'Please check your phone for the 6-digit OTP');
@@ -57,7 +52,7 @@ export default function LoginScreen() {
       if (error.code === 'auth/too-many-requests') {
         Alert.alert(
           'Too Many Attempts',
-          'You have tried too many times. Please wait a few minutes before trying again, or try from a different device.',
+          'You have tried too many times. Please wait a few minutes before trying again.',
           [{ text: 'OK' }]
         );
       } else if (error.code === 'auth/billing-not-enabled') {
@@ -82,66 +77,66 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      if (testMode) {
+      if (TEST_MODE) {
+        console.log('Test mode: Verifying OTP');
         if (otp !== '123456') {
-          Alert.alert('Invalid OTP', 'In test mode, use OTP: 123456');
+          Alert.alert('Invalid OTP', 'Please enter the correct OTP');
           setIsLoading(false);
           return;
         }
+        
         console.log('Test mode: Logging in with phone:', `+91${phone}`);
-        try {
-          const success = await loginWithFirebase(`+91${phone}`, 'test-mode-token');
-          console.log('Test mode login result:', success);
-          if (success) {
-            router.replace('/(tabs)');
-          } else {
-            console.error('Test mode: loginWithFirebase returned false');
-            Alert.alert('Login Failed', 'Backend login failed. Check console for details.');
-          }
-        } catch (error: any) {
-          console.error('Test mode login exception:', error);
-          Alert.alert('Login Failed', error?.message || 'Unknown error occurred');
+        const success = await loginWithFirebase(`+91${phone}`, 'test-mode-token');
+        
+        if (success) {
+          console.log('Test mode: Login successful');
+          router.replace('/(tabs)');
+        } else {
+          console.error('Test mode: Backend login failed');
+          Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
         }
         setIsLoading(false);
         return;
       }
 
-      console.log('Step 1: Verifying OTP with Firebase...');
+      console.log('Verifying OTP with Firebase...');
       const credential = PhoneAuthProvider.credential(verificationId, otp);
       const result = await signInWithCredential(auth, credential);
-      console.log('Step 2: Firebase authentication successful');
+      console.log('Firebase authentication successful');
       
-      console.log('Step 3: Getting Firebase ID token...');
       const idToken = await result.user.getIdToken();
-      console.log('Step 4: Firebase ID token obtained');
+      console.log('Firebase ID token obtained');
       
-      console.log('Step 5: Calling backend login...');
+      console.log('Calling backend login...');
       const success = await loginWithFirebase(`+91${phone}`, idToken);
-      console.log('Step 6: Backend login result:', success);
       
       if (success) {
-        console.log('Step 7: Login successful, navigating to home');
+        console.log('Login successful, navigating to home');
         router.replace('/(tabs)');
       } else {
-        console.log('Step 7: Backend login returned false');
+        console.log('Backend login failed');
         Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
       }
     } catch (error: any) {
-      console.error('Verification failed at some step:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('Verification failed:', error);
       
-      if (error.code === 'auth/too-many-requests') {
-        Alert.alert(
-          'Too Many Attempts',
-          'You have tried too many times. Please wait a few minutes before trying again.',
-          [{ text: 'OK' }]
-        );
-      } else if (error.code === 'auth/invalid-verification-code') {
+      if (error.code === 'auth/invalid-verification-code') {
         Alert.alert('Invalid OTP', 'The OTP you entered is incorrect. Please try again.');
       } else if (error.code === 'auth/code-expired') {
         Alert.alert('OTP Expired', 'The OTP has expired. Please request a new one.');
         setShowOtp(false);
         setOtp('');
+      } else if (error.code === 'auth/too-many-requests') {
+        Alert.alert(
+          'Too Many Attempts',
+          'You have tried too many times. Please wait a few minutes before trying again.',
+          [{ text: 'OK' }]
+        );
+      } else if (error.code === 'auth/invalid-verification-id') {
+        Alert.alert('Session Expired', 'Please request a new OTP.');
+        setShowOtp(false);
+        setOtp('');
+        setVerificationId('');
       } else {
         Alert.alert('Login Failed', error.message || 'Please try again');
       }
@@ -168,16 +163,6 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.title}>Welcome to NearBite</Text>
           <Text style={styles.subtitle}>Enter your phone number to continue</Text>
-        </View>
-
-        <View style={styles.testModeContainer}>
-          <Text style={styles.testModeLabel}>Test Mode (OTP: 123456)</Text>
-          <Switch
-            value={testMode}
-            onValueChange={handleTestModeToggle}
-            trackColor={{ false: '#D1D5DB', true: '#FCA5A5' }}
-            thumbColor={testMode ? '#EF4444' : '#F3F4F6'}
-          />
         </View>
 
         <View style={styles.form}>
@@ -344,21 +329,5 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 18,
-  },
-  testModeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-  },
-  testModeLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: '#EF4444',
   },
 });
