@@ -5,21 +5,98 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import React from 'react';
-import { ChevronLeft, Clock } from 'lucide-react-native';
-import { orderAPI } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { ChevronLeft, Clock, MapPin, ShoppingBag } from 'lucide-react-native';
+import { orderAPI, restaurantAPI } from '@/lib/api';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useCart } from '@/contexts/CartContext';
+import { useAddresses } from '@/contexts/AddressContext';
+import { mockRestaurants } from '@/mocks/restaurants';
+import { MenuItem, Restaurant } from '@/types';
+import * as Haptics from 'expo-haptics';
 
 export default function OrderDetailsScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
+  const { addItem, clearCart } = useCart();
+  const { selectedAddress } = useAddresses();
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => orderAPI.getOrder(orderId!),
     enabled: !!orderId,
   });
+
+  const reorderMutation = useMutation({
+    mutationFn: async () => {
+      if (!order) throw new Error('No order data');
+      
+      const restaurantData = await restaurantAPI.getRestaurant(order.restaurantId);
+      const menuData = await restaurantAPI.listMenuItems(order.restaurantId);
+      
+      const mockData = mockRestaurants.find(m => m.name === restaurantData.name) || mockRestaurants[0];
+      const restaurant: Restaurant = {
+        id: restaurantData.restaurantId,
+        name: restaurantData.name,
+        image: mockData.image,
+        cuisine: ['Food'],
+        rating: 4.5,
+        totalRatings: 100,
+        deliveryTime: `${restaurantData.prepTimeMin}-${restaurantData.prepTimeMin + 10} mins`,
+        deliveryFee: 30,
+        minOrder: 100,
+        distance: '2 km',
+        isPureVeg: false,
+        offers: mockData.offers,
+      };
+
+      clearCart();
+      
+      for (const orderItem of order.items) {
+        const apiMenuItem = menuData.items.find(item => item.itemId === orderItem.itemId);
+        if (apiMenuItem && apiMenuItem.isAvailable) {
+          const menuItem: MenuItem = {
+            id: apiMenuItem.itemId,
+            restaurantId: apiMenuItem.restaurantId,
+            name: apiMenuItem.name,
+            description: apiMenuItem.description || '',
+            price: apiMenuItem.price,
+            category: 'Main Course',
+            isVeg: apiMenuItem.isVeg,
+            rating: 4.5,
+            isAvailable: apiMenuItem.isAvailable,
+          };
+          
+          for (let i = 0; i < orderItem.quantity; i++) {
+            addItem(menuItem, restaurant);
+          }
+        }
+      }
+    },
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push('/cart');
+    },
+    onError: (error) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Failed to reorder. Some items may not be available.');
+      console.error('Reorder error:', error);
+    },
+  });
+
+  const handleReorder = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Reorder',
+      'This will replace your current cart. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reorder', onPress: () => reorderMutation.mutate() },
+      ]
+    );
+  };
 
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
@@ -175,6 +252,28 @@ export default function OrderDetailsScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Delivery Address</Text>
+          <View style={styles.addressCard}>
+            <View style={styles.addressIconContainer}>
+              <MapPin size={20} color="#EF4444" />
+            </View>
+            <View style={styles.addressContent}>
+              {selectedAddress ? (
+                <>
+                  <Text style={styles.addressType}>{selectedAddress.nickname || selectedAddress.type}</Text>
+                  <Text style={styles.addressDetail}>{selectedAddress.address}</Text>
+                  {selectedAddress.landmark && (
+                    <Text style={styles.addressLandmark}>Landmark: {selectedAddress.landmark}</Text>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.addressDetail}>Address not available</Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Information</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
@@ -196,6 +295,24 @@ export default function OrderDetailsScreen() {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      <View style={styles.reorderContainer}>
+        <TouchableOpacity 
+          style={[styles.reorderButton, reorderMutation.isPending && styles.reorderButtonDisabled]}
+          onPress={handleReorder}
+          disabled={reorderMutation.isPending}
+          activeOpacity={0.7}
+        >
+          {reorderMutation.isPending ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <ShoppingBag size={20} color="#FFFFFF" />
+              <Text style={styles.reorderButtonText}>Reorder</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -446,5 +563,72 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  addressCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    gap: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  addressIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addressContent: {
+    flex: 1,
+    gap: 4,
+  },
+  addressType: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#111827',
+  },
+  addressDetail: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  addressLandmark: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic' as const,
+  },
+  reorderContainer: {
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  reorderButton: {
+    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.6,
+  },
+  reorderButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
 });
