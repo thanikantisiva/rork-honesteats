@@ -87,7 +87,7 @@ export default function HomeScreen() {
             <View style={styles.locationRow}>
               <Text style={styles.locationText} numberOfLines={1}>
                 {selectedAddress ? (
-                  `${selectedAddress.nickname || selectedAddress.type} - ${selectedAddress.address.split(',')[0]}`
+                  selectedAddress.nickname || selectedAddress.type
                 ) : (
                   'Select delivery address'
                 )}
