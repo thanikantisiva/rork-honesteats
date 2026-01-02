@@ -81,7 +81,7 @@ export default function OrderDetailsScreen() {
         }
       });
 
-      router.push('/cart');
+      router.push('/checkout');
     },
   });
 
