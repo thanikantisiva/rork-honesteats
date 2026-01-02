@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://rur4ptgx77.execute-api.ap-south-1.amazonaws.com/default';
+const API_BASE_URL = 'https://fzmoofb2rj.execute-api.ap-south-1.amazonaws.com/default';
 
 export interface APIResponse<T> {
   data?: T;
