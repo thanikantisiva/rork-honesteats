@@ -8,17 +8,81 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import React from 'react';
-import { ChevronLeft, Clock } from 'lucide-react-native';
-import { orderAPI } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { ChevronLeft, Clock, MapPin, RefreshCcw } from 'lucide-react-native';
+import { orderAPI, restaurantAPI } from '@/lib/api';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useAddresses } from '@/contexts/AddressContext';
+import { useCart } from '@/contexts/CartContext';
+import { MenuItem } from '@/types';
+import { mockRestaurants } from '@/mocks/restaurants';
 
 export default function OrderDetailsScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
+  const { selectedAddress } = useAddresses();
+  const { addItem, clearCart } = useCart();
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => orderAPI.getOrder(orderId!),
     enabled: !!orderId,
+  });
+
+  const { data: restaurant } = useQuery({
+    queryKey: ['restaurant', order?.restaurantId],
+    queryFn: () => restaurantAPI.getRestaurant(order!.restaurantId),
+    enabled: !!order?.restaurantId,
+  });
+
+  const { data: menuItems } = useQuery({
+    queryKey: ['menu', order?.restaurantId],
+    queryFn: () => restaurantAPI.listMenuItems(order!.restaurantId),
+    enabled: !!order?.restaurantId,
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async () => {
+      if (!order || !menuItems || !restaurant) return;
+
+      const mockData = mockRestaurants.find(m => m.name === restaurant.name) || mockRestaurants[0];
+      const restaurantData = {
+        id: restaurant.restaurantId,
+        name: restaurant.name,
+        image: mockData.image,
+        cuisine: ['Food'],
+        rating: 4.5,
+        totalRatings: 100,
+        deliveryTime: `${restaurant.prepTimeMin}-${restaurant.prepTimeMin + 10} mins`,
+        deliveryFee: 30,
+        minOrder: 100,
+        distance: '2 km',
+        isPureVeg: false,
+        offers: mockData.offers,
+      };
+
+      clearCart();
+
+      order.items.forEach((orderItem) => {
+        const menuItem = menuItems.items.find(m => m.itemId === orderItem.itemId);
+        if (menuItem) {
+          const item: MenuItem = {
+            id: menuItem.itemId,
+            restaurantId: menuItem.restaurantId,
+            name: menuItem.name,
+            description: menuItem.description || '',
+            price: menuItem.price,
+            category: 'Food',
+            isVeg: menuItem.isVeg,
+            isAvailable: menuItem.isAvailable,
+          };
+
+          for (let i = 0; i < orderItem.quantity; i++) {
+            addItem(item, restaurantData);
+          }
+        }
+      });
+
+      router.push('/cart');
+    },
   });
 
   const getStatusColor = (status: string) => {
@@ -174,6 +238,22 @@ export default function OrderDetailsScreen() {
           </View>
         </View>
 
+        {selectedAddress && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Delivery Address</Text>
+            <View style={styles.addressCard}>
+              <View style={styles.addressHeader}>
+                <MapPin size={20} color="#EF4444" />
+                <Text style={styles.addressTitle}>{selectedAddress.nickname || selectedAddress.type}</Text>
+              </View>
+              <Text style={styles.addressText}>{selectedAddress.address}</Text>
+              {selectedAddress.landmark && (
+                <Text style={styles.landmarkText}>Landmark: {selectedAddress.landmark}</Text>
+              )}
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Information</Text>
           <View style={styles.infoCard}>
@@ -196,6 +276,23 @@ export default function OrderDetailsScreen() {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[
+            styles.reorderButton,
+            reorderMutation.isPending && styles.reorderButtonDisabled,
+          ]}
+          onPress={() => reorderMutation.mutate()}
+          disabled={reorderMutation.isPending}
+          activeOpacity={0.7}
+        >
+          <RefreshCcw size={20} color="#FFFFFF" />
+          <Text style={styles.reorderButtonText}>
+            {reorderMutation.isPending ? 'Adding to cart...' : 'Reorder'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -446,5 +543,66 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  addressCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    gap: 8,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addressTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#111827',
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginLeft: 28,
+  },
+  landmarkText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginLeft: 28,
+    fontStyle: 'italic' as const,
+  },
+  footer: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  reorderButton: {
+    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.6,
+  },
+  reorderButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
 });
