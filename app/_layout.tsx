@@ -9,6 +9,7 @@ import { CartContext } from "@/contexts/CartContext";
 import { OrdersContext } from "@/contexts/OrdersContext";
 import { AddressContext } from "@/contexts/AddressContext";
 import { trpc, trpcClient } from "@/lib/trpc";
+import "@/lib/firebase";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
