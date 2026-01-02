@@ -92,11 +92,16 @@ export default function LoginScreen() {
       console.log('[MOCK] Logging in with phone:', `+91${phone}`);
       
       try {
-        const success = await loginWithFirebase(`+91${phone}`, 'mock-firebase-token', true);
+        const result = await loginWithFirebase(`+91${phone}`, 'mock-firebase-token', true);
         
-        if (success) {
-          console.log('[MOCK] Login successful');
-          router.replace('/(tabs)');
+        if (result.success) {
+          if (result.isNewUser) {
+            console.log('[MOCK] New user detected, navigating to user details');
+            router.push({ pathname: '/user-details', params: { phone: `+91${phone}` } });
+          } else {
+            console.log('[MOCK] Login successful');
+            router.replace('/(tabs)');
+          }
         } else {
           console.error('[MOCK] Backend login failed');
           Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
@@ -113,18 +118,23 @@ export default function LoginScreen() {
     try {
       console.log('Verifying OTP with Firebase...');
       const credential = PhoneAuthProvider.credential(verificationId, otp);
-      const result = await signInWithCredential(auth, credential);
+      const firebaseResult = await signInWithCredential(auth, credential);
       console.log('Firebase authentication successful');
       
-      const idToken = await result.user.getIdToken();
+      const idToken = await firebaseResult.user.getIdToken();
       console.log('Firebase ID token obtained');
       
       console.log('Calling backend login...');
-      const success = await loginWithFirebase(`+91${phone}`, idToken);
+      const loginResult = await loginWithFirebase(`+91${phone}`, idToken);
       
-      if (success) {
-        console.log('Login successful, navigating to home');
-        router.replace('/(tabs)');
+      if (loginResult.success) {
+        if (loginResult.isNewUser) {
+          console.log('New user detected, navigating to user details');
+          router.push({ pathname: '/user-details', params: { phone: `+91${phone}` } });
+        } else {
+          console.log('Login successful, navigating to home');
+          router.replace('/(tabs)');
+        }
       } else {
         console.log('Backend login failed');
         Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
