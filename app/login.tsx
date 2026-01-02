@@ -14,6 +14,13 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [verificationId, setVerificationId] = useState<string>('');
   const [testMode, setTestMode] = useState(false);
+
+  const handleTestModeToggle = (value: boolean) => {
+    setTestMode(value);
+    setShowOtp(false);
+    setOtp('');
+    setVerificationId('');
+  };
   const router = useRouter();
   const { loginWithFirebase } = useAuth();
   const recaptchaVerifier = useRef<any>(null);
@@ -160,7 +167,7 @@ export default function LoginScreen() {
           <Text style={styles.testModeLabel}>Test Mode (OTP: 123456)</Text>
           <Switch
             value={testMode}
-            onValueChange={setTestMode}
+            onValueChange={handleTestModeToggle}
             trackColor={{ false: '#D1D5DB', true: '#FCA5A5' }}
             thumbColor={testMode ? '#EF4444' : '#F3F4F6'}
           />
