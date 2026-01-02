@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Phone } from 'lucide-react-native';
@@ -13,6 +13,7 @@ export default function LoginScreen() {
   const [showOtp, setShowOtp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [verificationId, setVerificationId] = useState<string>('');
+  const [testMode, setTestMode] = useState(false);
   const router = useRouter();
   const { loginWithFirebase } = useAuth();
   const recaptchaVerifier = useRef<any>(null);
@@ -20,6 +21,12 @@ export default function LoginScreen() {
   const handleSendOtp = async () => {
     if (phone.length !== 10) {
       Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    if (testMode) {
+      setShowOtp(true);
+      Alert.alert('Test Mode', 'Use OTP: 123456');
       return;
     }
 
@@ -68,6 +75,23 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
+      if (testMode) {
+        if (otp !== '123456') {
+          Alert.alert('Invalid OTP', 'In test mode, use OTP: 123456');
+          setIsLoading(false);
+          return;
+        }
+        console.log('Test mode: Logging in with phone:', `+91${phone}`);
+        const success = await loginWithFirebase(`+91${phone}`, 'test-mode-token');
+        if (success) {
+          router.replace('/(tabs)');
+        } else {
+          Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
+        }
+        setIsLoading(false);
+        return;
+      }
+
       console.log('Step 1: Verifying OTP with Firebase...');
       const credential = PhoneAuthProvider.credential(verificationId, otp);
       const result = await signInWithCredential(auth, credential);
@@ -130,6 +154,16 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.title}>Welcome to NearBite</Text>
           <Text style={styles.subtitle}>Enter your phone number to continue</Text>
+        </View>
+
+        <View style={styles.testModeContainer}>
+          <Text style={styles.testModeLabel}>Test Mode (OTP: 123456)</Text>
+          <Switch
+            value={testMode}
+            onValueChange={setTestMode}
+            trackColor={{ false: '#D1D5DB', true: '#FCA5A5' }}
+            thumbColor={testMode ? '#EF4444' : '#F3F4F6'}
+          />
         </View>
 
         <View style={styles.form}>
@@ -296,5 +330,21 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  testModeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  testModeLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#EF4444',
   },
 });
