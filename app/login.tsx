@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Phone } from 'lucide-react-native';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { auth } from '@/lib/firebase';
+import { auth, firebaseConfig } from '@/lib/firebase';
 import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 
 export default function LoginScreen() {
@@ -86,7 +86,7 @@ export default function LoginScreen() {
     <>
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
-        firebaseConfig={auth.app.options}
+        firebaseConfig={firebaseConfig}
         attemptInvisibleVerification={Platform.OS === 'ios'}
       />
     <KeyboardAvoidingView 
