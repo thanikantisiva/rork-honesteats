@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Order, CartItem, Address, Restaurant } from '@/types';
 import { orderAPI, APIOrder, APIOrderItem } from '@/lib/api';
 import { useAuth } from './AuthContext';
+import { mockRestaurants } from '@/mocks/restaurants';
 
 const ORDERS_STORAGE_KEY = '@orders';
 
@@ -35,11 +36,14 @@ export const [OrdersContext, useOrders] = createContextHook(() => {
           limit: 50 
         });
         
-        const apiOrders: Order[] = response.orders.map((apiOrder: APIOrder) => ({
+        const apiOrders: Order[] = response.orders.map((apiOrder: APIOrder) => {
+          const restaurant = mockRestaurants.find(r => r.id === apiOrder.restaurantId);
+          
+          return {
           id: apiOrder.orderId,
           restaurantId: apiOrder.restaurantId,
-          restaurantName: 'Restaurant',
-          restaurantImage: '',
+          restaurantName: restaurant?.name || 'Restaurant',
+          restaurantImage: restaurant?.image || '',
           items: apiOrder.items.map((item: APIOrderItem) => ({
             menuItem: {
               id: item.itemId,
@@ -64,7 +68,8 @@ export const [OrdersContext, useOrders] = createContextHook(() => {
           },
           orderDate: new Date(apiOrder.createdAt),
           estimatedDeliveryTime: undefined,
-        }));
+        };
+        });
         
         if (apiOrders.length > 0) {
           setOrders(apiOrders);
