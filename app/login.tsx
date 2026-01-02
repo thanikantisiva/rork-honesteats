@@ -7,7 +7,7 @@ import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { auth, firebaseConfig } from '@/lib/firebase';
 import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 
-const TEST_MODE = false;
+const TEST_MODE = true;
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -26,8 +26,10 @@ export default function LoginScreen() {
     }
 
     if (TEST_MODE) {
-      console.log('Test mode: Skipping Firebase, use OTP: 123456');
+      console.log('[MOCK] Skipping Firebase OTP send');
+      console.log('[MOCK] Use OTP: 123456');
       setShowOtp(true);
+      Alert.alert('Mock OTP', 'Test OTP is: 123456');
       return;
     }
 
@@ -76,35 +78,39 @@ export default function LoginScreen() {
     }
 
     setIsLoading(true);
-    try {
-      if (TEST_MODE) {
-        console.log('Test mode: Verifying OTP');
-        if (otp !== '123456') {
-          Alert.alert('Invalid OTP', 'Please enter the correct OTP');
-          setIsLoading(false);
-          return;
-        }
-        
-        console.log('Test mode: Logging in with phone:', `+91${phone}`);
-        try {
-          const success = await loginWithFirebase(`+91${phone}`, 'test-mode-token');
-          
-          if (success) {
-            console.log('Test mode: Login successful');
-            router.replace('/(tabs)');
-          } else {
-            console.error('Test mode: Backend login failed');
-            Alert.alert('Login Failed', 'Failed to complete login. Please check console logs.');
-          }
-        } catch (error: any) {
-          console.error('Test mode: Login error:', error);
-          Alert.alert('Login Error', error.message || 'An error occurred during login');
-        } finally {
-          setIsLoading(false);
-        }
+    
+    if (TEST_MODE) {
+      console.log('[MOCK] Verifying OTP:', otp);
+      
+      if (otp !== '123456') {
+        setIsLoading(false);
+        Alert.alert('Invalid OTP', 'Mock OTP is: 123456');
         return;
       }
+      
+      console.log('[MOCK] OTP verified successfully');
+      console.log('[MOCK] Logging in with phone:', `+91${phone}`);
+      
+      try {
+        const success = await loginWithFirebase(`+91${phone}`, 'mock-firebase-token');
+        
+        if (success) {
+          console.log('[MOCK] Login successful');
+          router.replace('/(tabs)');
+        } else {
+          console.error('[MOCK] Backend login failed');
+          Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
+        }
+      } catch (error: any) {
+        console.error('[MOCK] Login error:', error);
+        Alert.alert('Login Error', error.message || 'An error occurred during login');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
 
+    try {
       console.log('Verifying OTP with Firebase...');
       const credential = PhoneAuthProvider.credential(verificationId, otp);
       const result = await signInWithCredential(auth, credential);
