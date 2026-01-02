@@ -1,10 +1,18 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { useOrders } from '@/contexts/OrdersContext';
+import React from 'react';
 import { MapPin } from 'lucide-react-native';
 import { Order } from '@/types';
 
 export default function OrdersScreen() {
-  const { orders, isLoading } = useOrders();
+  const { orders, isLoading, refreshOrders } = useOrders();
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refreshOrders();
+    setRefreshing(false);
+  };
 
   const getStatusColor = (status: Order['status']) => {
     switch (status) {
@@ -64,7 +72,13 @@ export default function OrdersScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.container} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
       <View style={styles.content}>
         {orders.map((order) => (
           <TouchableOpacity key={order.id} style={styles.orderCard} activeOpacity={0.7}>

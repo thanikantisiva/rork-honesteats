@@ -18,68 +18,69 @@ export const [OrdersContext, useOrders] = createContextHook(() => {
     
     setIsLoading(true);
     try {
-      const stored = await AsyncStorage.getItem(ORDERS_STORAGE_KEY);
-      if (stored) {
-        const parsedOrders = JSON.parse(stored);
-        setOrders(parsedOrders.map((order: Order) => ({
-          ...order,
-          orderDate: new Date(order.orderDate),
-          estimatedDeliveryTime: order.estimatedDeliveryTime 
-            ? new Date(order.estimatedDeliveryTime) 
-            : undefined,
-        })));
-      }
+      console.log('[OrdersContext] Fetching orders from API for:', user.phone);
+      const response = await orderAPI.listOrders({ 
+        customerPhone: user.phone,
+        limit: 50 
+      });
       
-      try {
-        const response = await orderAPI.listOrders({ 
-          customerPhone: user.phone,
-          limit: 50 
-        });
+      console.log('[OrdersContext] Received orders:', response.orders.length);
+      
+      const apiOrders: Order[] = response.orders.map((apiOrder: APIOrder) => {
+        const restaurant = mockRestaurants.find(r => r.id === apiOrder.restaurantId);
         
-        const apiOrders: Order[] = response.orders.map((apiOrder: APIOrder) => {
-          const restaurant = mockRestaurants.find(r => r.id === apiOrder.restaurantId);
-          
-          return {
-          id: apiOrder.orderId,
-          restaurantId: apiOrder.restaurantId,
-          restaurantName: restaurant?.name || 'Restaurant',
-          restaurantImage: restaurant?.image || '',
-          items: apiOrder.items.map((item: APIOrderItem) => ({
-            menuItem: {
-              id: item.itemId,
-              restaurantId: apiOrder.restaurantId,
-              name: item.name,
-              description: '',
-              price: item.price,
-              category: '',
-              isVeg: false,
-              isAvailable: true,
-            },
-            quantity: item.quantity,
-          })),
-          totalAmount: apiOrder.grandTotal,
-          deliveryFee: apiOrder.deliveryFee,
-          status: mapAPIStatusToOrderStatus(apiOrder.status),
-          deliveryAddress: {
-            id: 'temp',
-            type: 'Home',
-            address: '',
-            coordinates: { lat: 0, lng: 0 },
+        return {
+        id: apiOrder.orderId,
+        restaurantId: apiOrder.restaurantId,
+        restaurantName: restaurant?.name || 'Restaurant',
+        restaurantImage: restaurant?.image || '',
+        items: apiOrder.items.map((item: APIOrderItem) => ({
+          menuItem: {
+            id: item.itemId,
+            restaurantId: apiOrder.restaurantId,
+            name: item.name,
+            description: '',
+            price: item.price,
+            category: '',
+            isVeg: false,
+            isAvailable: true,
           },
-          orderDate: new Date(apiOrder.createdAt),
-          estimatedDeliveryTime: undefined,
-        };
-        });
-        
-        if (apiOrders.length > 0) {
-          setOrders(apiOrders);
-          await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(apiOrders));
-        }
-      } catch (error) {
-        console.error('Failed to fetch orders from API:', error);
-      }
+          quantity: item.quantity,
+        })),
+        totalAmount: apiOrder.grandTotal,
+        deliveryFee: apiOrder.deliveryFee,
+        status: mapAPIStatusToOrderStatus(apiOrder.status),
+        deliveryAddress: {
+          id: 'temp',
+          type: 'Home',
+          address: '',
+          coordinates: { lat: 0, lng: 0 },
+        },
+        orderDate: new Date(apiOrder.createdAt),
+        estimatedDeliveryTime: undefined,
+      };
+      });
+      
+      setOrders(apiOrders);
+      await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(apiOrders));
     } catch (error) {
-      console.error('Failed to load orders:', error);
+      console.error('[OrdersContext] Failed to fetch orders from API:', error);
+      try {
+        const stored = await AsyncStorage.getItem(ORDERS_STORAGE_KEY);
+        if (stored) {
+          console.log('[OrdersContext] Loading cached orders as fallback');
+          const parsedOrders = JSON.parse(stored);
+          setOrders(parsedOrders.map((order: Order) => ({
+            ...order,
+            orderDate: new Date(order.orderDate),
+            estimatedDeliveryTime: order.estimatedDeliveryTime 
+              ? new Date(order.estimatedDeliveryTime) 
+              : undefined,
+          })));
+        }
+      } catch (storageError) {
+        console.error('[OrdersContext] Failed to load cached orders:', storageError);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -149,10 +150,15 @@ export const [OrdersContext, useOrders] = createContextHook(() => {
     }
   }, [orders, user?.phone]);
 
+  const refreshOrders = useCallback(() => {
+    return loadOrders();
+  }, [loadOrders]);
+
   return {
     orders,
     isLoading,
     placeOrder,
+    refreshOrders,
   };
 });
 
