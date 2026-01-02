@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
-import { trpc } from '@/lib/trpc';
+import { userAPI } from '@/lib/api';
 
 const USER_STORAGE_KEY = '@user';
 const TOKEN_STORAGE_KEY = '@token';
@@ -11,9 +11,6 @@ export const [AuthContext, useAuth] = createContextHook(() => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const loginMutation = trpc.auth.login.useMutation();
-  const updateProfileMutation = trpc.auth.updateProfile.useMutation();
 
   useEffect(() => {
     loadUser();
@@ -43,7 +40,7 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     
     try {
       if (testMode) {
-        console.log('[MOCK] Bypassing backend, creating mock user');
+        console.log('[MOCK] Creating mock user');
         const userId = `user-${phone.replace(/\+/g, '')}`;
         const newUser: User = {
           id: userId,
@@ -65,36 +62,38 @@ export const [AuthContext, useAuth] = createContextHook(() => {
         return true;
       }
       
-      console.log('Calling tRPC login mutation...');
-      const result = await loginMutation.mutateAsync({ 
-        phone, 
-        firebaseToken 
-      });
-      console.log('tRPC login mutation succeeded:', result);
+      console.log('Checking if user exists...');
+      let apiUser;
+      try {
+        apiUser = await userAPI.getUser(phone);
+        console.log('User found:', apiUser);
+      } catch {
+        console.log('User not found, creating new user...');
+        apiUser = await userAPI.createUser({ phone, name: 'User' });
+        console.log('User created:', apiUser);
+      }
       
       const newUser: User = {
-        id: String(result.user.id),
-        phone: String(result.user.phone),
-        name: String(result.user.name),
-        email: result.user.email as string | undefined,
+        id: phone,
+        phone: apiUser.phone,
+        name: apiUser.name,
+        email: apiUser.email,
       };
       
       console.log('Saving user to AsyncStorage...');
       await Promise.all([
         AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser)),
-        AsyncStorage.setItem(TOKEN_STORAGE_KEY, String(result.token)),
+        AsyncStorage.setItem(TOKEN_STORAGE_KEY, phone),
       ]);
       console.log('User saved to AsyncStorage');
       
       setUser(newUser);
-      setToken(String(result.token));
+      setToken(phone);
       console.log('Login completed successfully');
       return true;
     } catch (error: any) {
       console.error('Login failed with error:', error);
       console.error('Error message:', error?.message);
-      console.error('Error data:', error?.data);
-      console.error('Full error:', JSON.stringify(error, null, 2));
       return false;
     }
   };
@@ -112,14 +111,13 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     if (!user) return;
     
     try {
-      const result = await updateProfileMutation.mutateAsync({
-        userId: user.id,
+      const result = await userAPI.updateUser(user.phone, {
         name: updates.name,
         email: updates.email,
       });
       
       const updatedUser: User = {
-        id: String(result.id),
+        id: user.phone,
         phone: result.phone,
         name: result.name,
         email: result.email,

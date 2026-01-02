@@ -1,8 +1,8 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Address } from '@/types';
-import { trpc } from '@/lib/trpc';
+import { addressAPI, APIAddress } from '@/lib/api';
 import { useAuth } from './AuthContext';
 
 const SELECTED_ADDRESS_KEY = '@selected_address';
@@ -10,33 +10,44 @@ const SELECTED_ADDRESS_KEY = '@selected_address';
 export const [AddressContext, useAddresses] = createContextHook(() => {
   const { user } = useAuth();
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-
-  const addressesQuery = trpc.addresses.list.useQuery(
-    { userId: user?.id || '' },
-    { enabled: !!user?.id }
-  );
-
-  const createMutation = trpc.addresses.create.useMutation({
-    onSuccess: () => {
-      addressesQuery.refetch();
-    },
-  });
-
-  const updateMutation = trpc.addresses.update.useMutation({
-    onSuccess: () => {
-      addressesQuery.refetch();
-    },
-  });
-
-  const deleteMutation = trpc.addresses.delete.useMutation({
-    onSuccess: () => {
-      addressesQuery.refetch();
-    },
-  });
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadSelectedAddress();
   }, []);
+
+  const loadAddresses = useCallback(async () => {
+    if (!user?.phone) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await addressAPI.listAddresses(user.phone);
+      const mappedAddresses: Address[] = response.addresses.map((apiAddr: APIAddress) => ({
+        id: apiAddr.addressId,
+        type: apiAddr.label as 'Home' | 'Work' | 'Other',
+        nickname: apiAddr.label,
+        address: apiAddr.address,
+        landmark: undefined,
+        coordinates: {
+          lat: apiAddr.lat,
+          lng: apiAddr.lng,
+        },
+      }));
+      setAddresses(mappedAddresses);
+    } catch (error) {
+      console.error('Failed to load addresses:', error);
+      setAddresses([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.phone]);
+
+  useEffect(() => {
+    if (user?.phone) {
+      loadAddresses();
+    }
+  }, [user?.phone, loadAddresses]);
 
   const loadSelectedAddress = async () => {
     try {
@@ -49,50 +60,50 @@ export const [AddressContext, useAddresses] = createContextHook(() => {
     }
   };
 
-
-
   const addAddress = async (address: Omit<Address, 'id'>) => {
-    if (!user?.id) throw new Error('User not authenticated');
+    if (!user?.phone) throw new Error('User not authenticated');
 
-    const result = await createMutation.mutateAsync({
-      userId: user.id,
-      type: address.type,
-      nickname: address.nickname,
+    const result = await addressAPI.createAddress(user.phone, {
+      label: address.nickname || address.type,
       address: address.address,
-      landmark: address.landmark,
       lat: address.coordinates.lat,
       lng: address.coordinates.lng,
     });
 
-    const addresses = addressesQuery.data || [];
+    await loadAddresses();
+
     if (addresses.length === 0) {
-      await selectAddress(String(result.id));
+      await selectAddress(result.addressId);
     }
 
     return result;
   };
 
   const updateAddress = async (id: string, updates: Partial<Omit<Address, 'id'>>) => {
-    await updateMutation.mutateAsync({
-      id,
-      type: updates.type,
-      nickname: updates.nickname,
+    if (!user?.phone) throw new Error('User not authenticated');
+
+    await addressAPI.updateAddress(user.phone, id, {
+      label: updates.nickname || updates.type,
       address: updates.address,
-      landmark: updates.landmark,
       lat: updates.coordinates?.lat,
       lng: updates.coordinates?.lng,
     });
+
+    await loadAddresses();
   };
 
   const deleteAddress = async (id: string) => {
-    await deleteMutation.mutateAsync({ id });
+    if (!user?.phone) throw new Error('User not authenticated');
+
+    await addressAPI.deleteAddress(user.phone, id);
 
     if (selectedAddressId === id) {
-      const addresses = addressesQuery.data || [];
       const remainingAddresses = addresses.filter((addr) => addr.id !== id);
       const newSelectedId = remainingAddresses.length > 0 ? remainingAddresses[0].id : null;
       await selectAddress(newSelectedId);
     }
+
+    await loadAddresses();
   };
 
   const selectAddress = async (id: string | null) => {
@@ -109,14 +120,13 @@ export const [AddressContext, useAddresses] = createContextHook(() => {
     }
   };
 
-  const addresses = addressesQuery.data || [];
   const selectedAddress = addresses.find((addr) => addr.id === selectedAddressId) || addresses[0];
 
   return {
     addresses,
     selectedAddress,
     selectedAddressId,
-    isLoading: addressesQuery.isLoading,
+    isLoading,
     addAddress,
     updateAddress,
     deleteAddress,

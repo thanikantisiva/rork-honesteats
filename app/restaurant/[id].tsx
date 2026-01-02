@@ -1,18 +1,57 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Star, Clock, MapPin, Plus, Minus, ShoppingCart } from 'lucide-react-native';
 import { mockRestaurants, getRestaurantMenu } from '@/mocks/restaurants';
 import { useCart } from '@/contexts/CartContext';
 import { MenuItem } from '@/types';
+import { restaurantAPI, APIMenuItem } from '@/lib/api';
 
 export default function RestaurantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { addItem, removeItem, getItemQuantity, itemCount, total, restaurant: cartRestaurant } = useCart();
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
 
   const restaurant = mockRestaurants.find((r) => r.id === id);
-  const menuItems = getRestaurantMenu(id || '');
+
+  const loadMenuItems = useCallback(async () => {
+    if (!id) return;
+    
+    setIsLoadingMenu(true);
+    try {
+      const response = await restaurantAPI.listMenuItems(id);
+      const apiMenuItems: MenuItem[] = response.items.map((apiItem: APIMenuItem) => ({
+        id: apiItem.itemId,
+        restaurantId: apiItem.restaurantId,
+        name: apiItem.name,
+        description: apiItem.description || '',
+        price: apiItem.price,
+        category: 'Main Course',
+        isVeg: apiItem.isVeg,
+        isAvailable: apiItem.isAvailable,
+        image: undefined,
+      }));
+      
+      if (apiMenuItems.length > 0) {
+        setMenuItems(apiMenuItems);
+      } else {
+        setMenuItems(getRestaurantMenu(id));
+      }
+    } catch (error) {
+      console.error('Failed to load menu items from API:', error);
+      setMenuItems(getRestaurantMenu(id));
+    } finally {
+      setIsLoadingMenu(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadMenuItems();
+    }
+  }, [id, loadMenuItems]);
 
   const groupedMenu = useMemo(() => {
     const groups: Record<string, MenuItem[]> = {};
@@ -97,7 +136,13 @@ export default function RestaurantScreen() {
 
           <View style={styles.menuSection}>
             <Text style={styles.menuTitle}>Menu</Text>
-            {Object.entries(groupedMenu).map(([category, items]) => (
+            {isLoadingMenu ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#EF4444" />
+                <Text style={styles.loadingText}>Loading menu...</Text>
+              </View>
+            ) : (
+              Object.entries(groupedMenu).map(([category, items]) => (
               <View key={category} style={styles.categorySection}>
                 <Text style={styles.categoryTitle}>{category}</Text>
                 {items.map((item) => {
@@ -162,7 +207,8 @@ export default function RestaurantScreen() {
                   );
                 })}
               </View>
-            ))}
+            ))
+            )}
           </View>
 
           <View style={styles.bottomSpacing} />
@@ -421,5 +467,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
