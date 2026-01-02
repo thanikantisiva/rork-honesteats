@@ -86,16 +86,22 @@ export default function LoginScreen() {
         }
         
         console.log('Test mode: Logging in with phone:', `+91${phone}`);
-        const success = await loginWithFirebase(`+91${phone}`, 'test-mode-token');
-        
-        if (success) {
-          console.log('Test mode: Login successful');
-          router.replace('/(tabs)');
-        } else {
-          console.error('Test mode: Backend login failed');
-          Alert.alert('Login Failed', 'Failed to complete login. Please try again.');
+        try {
+          const success = await loginWithFirebase(`+91${phone}`, 'test-mode-token');
+          
+          if (success) {
+            console.log('Test mode: Login successful');
+            router.replace('/(tabs)');
+          } else {
+            console.error('Test mode: Backend login failed');
+            Alert.alert('Login Failed', 'Failed to complete login. Please check console logs.');
+          }
+        } catch (error: any) {
+          console.error('Test mode: Login error:', error);
+          Alert.alert('Login Error', error.message || 'An error occurred during login');
+        } finally {
+          setIsLoading(false);
         }
-        setIsLoading(false);
         return;
       }
 
