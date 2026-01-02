@@ -39,7 +39,22 @@ export default function LoginScreen() {
       Alert.alert('OTP Sent', 'Please check your phone for the 6-digit OTP');
     } catch (error: any) {
       console.error('Failed to send OTP:', error);
-      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      
+      if (error.code === 'auth/too-many-requests') {
+        Alert.alert(
+          'Too Many Attempts',
+          'You have tried too many times. Please wait a few minutes before trying again, or try from a different device.',
+          [{ text: 'OK' }]
+        );
+      } else if (error.code === 'auth/billing-not-enabled') {
+        Alert.alert(
+          'Service Unavailable',
+          'Phone authentication is temporarily unavailable. Please contact support.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +91,22 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('Verification failed at some step:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
-      Alert.alert('Login Failed', error.message || 'Please try again');
+      
+      if (error.code === 'auth/too-many-requests') {
+        Alert.alert(
+          'Too Many Attempts',
+          'You have tried too many times. Please wait a few minutes before trying again.',
+          [{ text: 'OK' }]
+        );
+      } else if (error.code === 'auth/invalid-verification-code') {
+        Alert.alert('Invalid OTP', 'The OTP you entered is incorrect. Please try again.');
+      } else if (error.code === 'auth/code-expired') {
+        Alert.alert('OTP Expired', 'The OTP has expired. Please request a new one.');
+        setShowOtp(false);
+        setOtp('');
+      } else {
+        Alert.alert('Login Failed', error.message || 'Please try again');
+      }
     } finally {
       setIsLoading(false);
     }
