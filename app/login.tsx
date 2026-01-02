@@ -92,7 +92,7 @@ export default function LoginScreen() {
       console.log('[MOCK] Logging in with phone:', `+91${phone}`);
       
       try {
-        const success = await loginWithFirebase(`+91${phone}`, 'mock-firebase-token');
+        const success = await loginWithFirebase(`+91${phone}`, 'mock-firebase-token', true);
         
         if (success) {
           console.log('[MOCK] Login successful');

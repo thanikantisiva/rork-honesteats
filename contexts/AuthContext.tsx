@@ -38,10 +38,33 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     }
   };
 
-  const loginWithFirebase = async (phone: string, firebaseToken: string): Promise<boolean> => {
-    console.log('Firebase login attempt:', { phone });
+  const loginWithFirebase = async (phone: string, firebaseToken: string, testMode: boolean = false): Promise<boolean> => {
+    console.log('Firebase login attempt:', { phone, testMode });
     
     try {
+      if (testMode) {
+        console.log('[MOCK] Bypassing backend, creating mock user');
+        const userId = `user-${phone.replace(/\+/g, '')}`;
+        const newUser: User = {
+          id: userId,
+          phone: phone,
+          name: 'Test User',
+          email: undefined,
+        };
+        
+        console.log('[MOCK] Saving mock user to AsyncStorage...');
+        await Promise.all([
+          AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser)),
+          AsyncStorage.setItem(TOKEN_STORAGE_KEY, userId),
+        ]);
+        console.log('[MOCK] Mock user saved to AsyncStorage');
+        
+        setUser(newUser);
+        setToken(userId);
+        console.log('[MOCK] Login completed successfully');
+        return true;
+      }
+      
       console.log('Calling tRPC login mutation...');
       const result = await loginMutation.mutateAsync({ 
         phone, 
