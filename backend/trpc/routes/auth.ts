@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDynamoClient, TABLES } from '@/backend/db';
-import { GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { userAPI } from '@/lib/api';
 
 export const authRouter = createTRPCRouter({
   login: publicProcedure
@@ -12,36 +11,36 @@ export const authRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       console.log('Login with Firebase token for:', input.phone);
       
-      const userId = `user-${input.phone.replace(/\+/g, '')}`;
+      const userId = input.phone;
       
-      const db = getDynamoClient();
-      const existingUser = await db.send(new GetCommand({
-        TableName: TABLES.USERS,
-        Key: { id: userId },
-      }));
-      
-      if (!existingUser.Item) {
-        await db.send(new PutCommand({
-          TableName: TABLES.USERS,
-          Item: {
+      try {
+        const existingUser = await userAPI.getUser(userId);
+        
+        return {
+          user: {
             id: userId,
-            phone: input.phone,
-            name: 'User',
-            email: null,
-            createdAt: new Date().toISOString(),
+            phone: existingUser.phone,
+            name: existingUser.name,
+            email: existingUser.email || null,
           },
-        }));
+          token: userId,
+        };
+      } catch {
+        const newUser = await userAPI.createUser({
+          phone: userId,
+          name: 'User',
+        });
+        
+        return {
+          user: {
+            id: userId,
+            phone: newUser.phone,
+            name: newUser.name,
+            email: newUser.email || null,
+          },
+          token: userId,
+        };
       }
-      
-      return {
-        user: {
-          id: userId,
-          phone: input.phone,
-          name: existingUser.Item?.name || 'User',
-          email: existingUser.Item?.email || null,
-        },
-        token: userId,
-      };
     }),
 
   updateProfile: publicProcedure
@@ -51,70 +50,32 @@ export const authRouter = createTRPCRouter({
       email: z.string().email().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDynamoClient();
       const { userId, ...updates } = input;
 
-      const updateExpression: string[] = [];
-      const expressionAttributeNames: Record<string, string> = {};
-      const expressionAttributeValues: Record<string, any> = {};
+      const updateData: any = {};
+      if (updates.name) updateData.name = updates.name;
+      if (updates.email) updateData.email = updates.email;
 
-      if (updates.name) {
-        updateExpression.push('#name = :name');
-        expressionAttributeNames['#name'] = 'name';
-        expressionAttributeValues[':name'] = updates.name;
-      }
-      if (updates.email) {
-        updateExpression.push('#email = :email');
-        expressionAttributeNames['#email'] = 'email';
-        expressionAttributeValues[':email'] = updates.email;
-      }
-
-      await db.send(new UpdateCommand({
-        TableName: TABLES.USERS,
-        Key: { id: userId },
-        UpdateExpression: `SET ${updateExpression.join(', ')}`,
-        ExpressionAttributeNames: expressionAttributeNames,
-        ExpressionAttributeValues: expressionAttributeValues,
-      }));
-
-      const result = await db.send(new GetCommand({
-        TableName: TABLES.USERS,
-        Key: { id: userId },
-      }));
-
-      const user = result.Item;
-      if (!user) {
-        throw new Error('User not found');
-      }
+      const user = await userAPI.updateUser(userId, updateData);
 
       return {
-        id: user.id,
+        id: user.phone,
         phone: user.phone,
         name: user.name,
-        email: user.email,
+        email: user.email || null,
       };
     }),
 
   getProfile: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
-      const db = getDynamoClient();
-      
-      const result = await db.send(new GetCommand({
-        TableName: TABLES.USERS,
-        Key: { id: input.userId },
-      }));
-
-      const user = result.Item;
-      if (!user) {
-        throw new Error('User not found');
-      }
+      const user = await userAPI.getUser(input.userId);
 
       return {
-        id: user.id,
+        id: user.phone,
         phone: user.phone,
         name: user.name,
-        email: user.email,
+        email: user.email || null,
       };
     }),
 });

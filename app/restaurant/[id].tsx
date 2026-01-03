@@ -23,8 +23,8 @@ export default function RestaurantScreen() {
     try {
       const response = await restaurantAPI.listMenuItems(id);
       const apiMenuItems: MenuItem[] = response.items.map((apiItem: APIMenuItem) => ({
-        id: apiItem.itemId,
-        restaurantId: apiItem.restaurantId,
+        id: apiItem.item_id,
+        restaurantId: apiItem.restaurant_id,
         name: apiItem.name,
         description: apiItem.description || '',
         price: apiItem.price,

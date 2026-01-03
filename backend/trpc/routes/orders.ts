@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDynamoClient, TABLES, generateId } from '@/backend/db';
-import { PutCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { orderAPI } from '@/lib/api';
 
 export const ordersRouter = createTRPCRouter({
   create: publicProcedure
@@ -40,106 +39,121 @@ export const ordersRouter = createTRPCRouter({
       }),
     }))
     .mutation(async ({ input }) => {
-      const db = getDynamoClient();
-
       const estimatedDeliveryTime = new Date();
       estimatedDeliveryTime.setMinutes(estimatedDeliveryTime.getMinutes() + 35);
 
-      const orderId = generateId();
-      const order = {
-        id: orderId,
-        userId: input.userId,
+      const foodTotal = input.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+      const platformFee = 5;
+
+      const order = await orderAPI.createOrder({
+        customerPhone: input.userId,
         restaurantId: input.restaurantId,
+        items: input.items.map(item => ({
+          itemId: item.menuItem.id,
+          name: item.menuItem.name,
+          quantity: item.quantity,
+          price: item.menuItem.price,
+        })),
+        foodTotal,
+        deliveryFee: input.deliveryFee,
+        platformFee,
+      });
+
+      return {
+        id: order.orderId,
+        restaurantId: order.restaurantId,
         restaurantName: input.restaurantName,
         restaurantImage: input.restaurantImage,
         items: input.items,
-        totalAmount: input.totalAmount,
-        deliveryFee: input.deliveryFee,
-        status: 'placed',
-        deliveryAddress: input.deliveryAddress,
-        orderDate: Date.now(),
-        estimatedDeliveryTime: estimatedDeliveryTime.getTime(),
-      };
-
-      await db.send(new PutCommand({
-        TableName: TABLES.ORDERS,
-        Item: order,
-      }));
-
-      return {
-        id: order.id,
-        restaurantId: order.restaurantId,
-        restaurantName: order.restaurantName,
-        restaurantImage: order.restaurantImage,
-        items: order.items,
-        totalAmount: order.totalAmount,
+        totalAmount: order.grandTotal,
         deliveryFee: order.deliveryFee,
         status: order.status,
-        deliveryAddress: order.deliveryAddress,
-        orderDate: order.orderDate,
-        estimatedDeliveryTime: order.estimatedDeliveryTime,
+        deliveryAddress: input.deliveryAddress,
+        orderDate: order.createdAt,
+        estimatedDeliveryTime: estimatedDeliveryTime.getTime(),
       };
     }),
 
   list: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
-      const db = getDynamoClient();
+      const { orders } = await orderAPI.listOrders({ 
+        customerPhone: input.userId,
+        limit: 50,
+      });
 
-      const result = await db.send(new QueryCommand({
-        TableName: TABLES.ORDERS,
-        IndexName: 'userId-index',
-        KeyConditionExpression: 'userId = :userId',
-        ExpressionAttributeValues: {
-          ':userId': input.userId,
-        },
-      }));
-
-      const orders = result.Items || [];
-      orders.sort((a: any, b: any) => (b.orderDate || 0) - (a.orderDate || 0));
-
-      return orders.map((order: any) => ({
-        id: order.id,
-        restaurantId: order.restaurantId,
-        restaurantName: order.restaurantName,
-        restaurantImage: order.restaurantImage,
-        items: order.items,
-        totalAmount: order.totalAmount,
-        deliveryFee: order.deliveryFee,
-        status: order.status,
-        deliveryAddress: order.deliveryAddress,
-        orderDate: order.orderDate,
-        estimatedDeliveryTime: order.estimatedDeliveryTime,
-      }));
+      return orders
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .map((order) => ({
+          id: order.orderId,
+          restaurantId: order.restaurantId,
+          restaurantName: 'Restaurant',
+          restaurantImage: '',
+          items: order.items.map(item => ({
+            menuItem: {
+              id: item.itemId,
+              restaurantId: order.restaurantId,
+              name: item.name,
+              description: '',
+              price: item.price,
+              image: '',
+              category: 'Main Course',
+              isVeg: false,
+              rating: 4.5,
+              isAvailable: true,
+            },
+            quantity: item.quantity,
+          })),
+          totalAmount: order.grandTotal,
+          deliveryFee: order.deliveryFee,
+          status: order.status,
+          deliveryAddress: {
+            id: '1',
+            type: 'Home' as const,
+            address: 'Delivery Address',
+            coordinates: { lat: 0, lng: 0 },
+          },
+          orderDate: order.createdAt,
+          estimatedDeliveryTime: order.createdAt + 35 * 60 * 1000,
+        }));
     }),
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      const db = getDynamoClient();
-      
-      const result = await db.send(new GetCommand({
-        TableName: TABLES.ORDERS,
-        Key: { id: input.id },
-      }));
-
-      const order = result.Item;
-      if (!order) {
-        throw new Error('Order not found');
-      }
+      const order = await orderAPI.getOrder(input.id);
 
       return {
-        id: order.id,
+        id: order.orderId,
         restaurantId: order.restaurantId,
-        restaurantName: order.restaurantName,
-        restaurantImage: order.restaurantImage,
-        items: order.items,
-        totalAmount: order.totalAmount,
+        restaurantName: 'Restaurant',
+        restaurantImage: '',
+        items: order.items.map(item => ({
+          menuItem: {
+            id: item.itemId,
+            restaurantId: order.restaurantId,
+            name: item.name,
+            description: '',
+            price: item.price,
+            image: '',
+            category: 'Main Course',
+            isVeg: false,
+            rating: 4.5,
+            isAvailable: true,
+          },
+          quantity: item.quantity,
+        })),
+        totalAmount: order.grandTotal,
         deliveryFee: order.deliveryFee,
         status: order.status,
-        deliveryAddress: order.deliveryAddress,
-        orderDate: order.orderDate,
-        estimatedDeliveryTime: order.estimatedDeliveryTime,
+        deliveryAddress: {
+          id: '1',
+          type: 'Home' as const,
+          address: 'Delivery Address',
+          coordinates: { lat: 0, lng: 0 },
+        },
+        orderDate: order.createdAt,
+        estimatedDeliveryTime: order.createdAt + 35 * 60 * 1000,
       };
     }),
 
@@ -149,19 +163,18 @@ export const ordersRouter = createTRPCRouter({
       status: z.enum(['placed', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']),
     }))
     .mutation(async ({ input }) => {
-      const db = getDynamoClient();
-      
-      await db.send(new UpdateCommand({
-        TableName: TABLES.ORDERS,
-        Key: { id: input.id },
-        UpdateExpression: 'SET #status = :status',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
-        ExpressionAttributeValues: {
-          ':status': input.status,
-        },
-      }));
+      const statusMap: Record<string, string> = {
+        'placed': 'PENDING',
+        'confirmed': 'CONFIRMED',
+        'preparing': 'PREPARING',
+        'out_for_delivery': 'OUT_FOR_DELIVERY',
+        'delivered': 'DELIVERED',
+        'cancelled': 'CANCELLED',
+      };
+
+      await orderAPI.updateOrderStatus(input.id, {
+        status: statusMap[input.status] || 'PENDING',
+      });
 
       return {
         id: input.id,

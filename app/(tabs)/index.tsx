@@ -32,7 +32,7 @@ export default function HomeScreen() {
           cuisine: ['Food'],
           rating: 4.5,
           totalRatings: 100,
-          deliveryTime: `${apiRest.prepTimeMin}-${apiRest.prepTimeMin + 10} mins`,
+          deliveryTime: '30-40 mins',
           deliveryFee: 30,
           minOrder: 100,
           distance: '2 km',

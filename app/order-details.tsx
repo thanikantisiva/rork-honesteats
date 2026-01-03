@@ -51,7 +51,7 @@ export default function OrderDetailsScreen() {
         cuisine: ['Food'],
         rating: 4.5,
         totalRatings: 100,
-        deliveryTime: `${restaurant.prepTimeMin}-${restaurant.prepTimeMin + 10} mins`,
+        deliveryTime: '30-40 mins',
         deliveryFee: 30,
         minOrder: 100,
         distance: '2 km',
@@ -62,11 +62,11 @@ export default function OrderDetailsScreen() {
       clearCart();
 
       order.items.forEach((orderItem) => {
-        const menuItem = menuItems.items.find(m => m.itemId === orderItem.itemId);
+        const menuItem = menuItems.items.find(m => m.item_id === orderItem.itemId);
         if (menuItem) {
           const item: MenuItem = {
-            id: menuItem.itemId,
-            restaurantId: menuItem.restaurantId,
+            id: menuItem.item_id,
+            restaurantId: menuItem.restaurant_id,
             name: menuItem.name,
             description: menuItem.description || '',
             price: menuItem.price,
@@ -188,7 +188,7 @@ export default function OrderDetailsScreen() {
           <Text style={styles.orderId}>Order #{order.orderId.slice(0, 8)}</Text>
           <View style={styles.dateContainer}>
             <Clock size={14} color="#6B7280" />
-            <Text style={styles.dateText}>{formatDate(order.createdAt)}</Text>
+            <Text style={styles.dateText}>{formatDate(order.createdAt.toString())}</Text>
           </View>
         </View>
 

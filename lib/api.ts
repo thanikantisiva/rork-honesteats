@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://fzmoofb2rj.execute-api.ap-south-1.amazonaws.com/default';
+const API_BASE_URL = 'https://c0iw8nlwn4.execute-api.ap-south-1.amazonaws.com/default';
 
 export interface APIResponse<T> {
   data?: T;
@@ -76,28 +76,33 @@ export interface APIUser {
   email?: string;
   role: string;
   isActive: boolean;
+  dateOfBirth?: string;
   createdAt: string;
 }
 
 export interface APIRestaurant {
+  restaurant_location: string;
   restaurantId: string;
   name: string;
-  address: string;
-  lat: number;
-  lng: number;
+  latitude: number;
+  longitude: number;
   isOpen: boolean;
-  prepTimeMin: number;
-  createdAt: string;
+  restaurantImage?: string;
+  cuisine: string[];
+  createdAt?: string;
 }
 
 export interface APIMenuItem {
-  restaurantId: string;
-  itemId: string;
+  restaurant_location: string;
+  restaurant_id: string;
+  item_id: string;
   name: string;
   price: number;
+  category?: string;
   isVeg: boolean;
   isAvailable: boolean;
   description?: string;
+  image?: string;
 }
 
 export interface APIAddress {
@@ -127,17 +132,17 @@ export interface APIOrder {
   grandTotal: number;
   status: string;
   riderId?: string | null;
-  createdAt: string;
+  createdAt: number;
 }
 
 export const userAPI = {
-  getUser: (phone: string) => api.get<APIUser>(`/api/v1/users/${phone}`),
+  getUser: (phone: string) => api.get<APIUser>(`/api/v1/users/${encodeURIComponent(phone)}`),
   
-  createUser: (data: { phone: string; name?: string; email?: string }) =>
+  createUser: (data: { phone: string; name?: string; email?: string; dateOfBirth?: string }) =>
     api.post<APIUser>('/api/v1/users', data),
   
-  updateUser: (phone: string, data: { name?: string; email?: string; isActive?: boolean }) =>
-    api.put<APIUser>(`/api/v1/users/${phone}`, data),
+  updateUser: (phone: string, data: { name?: string; email?: string; isActive?: boolean; dateOfBirth?: string }) =>
+    api.put<APIUser>(`/api/v1/users/${encodeURIComponent(phone)}`, data),
 };
 
 export const restaurantAPI = {
@@ -145,41 +150,41 @@ export const restaurantAPI = {
     api.get<{ restaurants: APIRestaurant[]; total: number }>('/api/v1/restaurants'),
   
   getRestaurant: (restaurantId: string) =>
-    api.get<APIRestaurant>(`/api/v1/restaurants/${restaurantId}`),
+    api.get<APIRestaurant>(`/api/v1/restaurants/${encodeURIComponent(restaurantId)}`),
   
   listMenuItems: (restaurantId: string) =>
     api.get<{ restaurantId: string; items: APIMenuItem[]; total: number }>(
-      `/api/v1/restaurants/${restaurantId}/menu`
+      `/api/v1/restaurants/${encodeURIComponent(restaurantId)}/menu`
     ),
   
   getMenuItem: (restaurantId: string, itemId: string) =>
-    api.get<APIMenuItem>(`/api/v1/restaurants/${restaurantId}/menu/${itemId}`),
+    api.get<APIMenuItem>(`/api/v1/restaurants/${encodeURIComponent(restaurantId)}/menu/${encodeURIComponent(itemId)}`),
 };
 
 export const addressAPI = {
   listAddresses: (phone: string) =>
     api.get<{ phone: string; addresses: APIAddress[]; total: number }>(
-      `/api/v1/users/${phone}/addresses`
+      `/api/v1/users/${encodeURIComponent(phone)}/addresses`
     ),
   
   getAddress: (phone: string, addressId: string) =>
-    api.get<APIAddress>(`/api/v1/users/${phone}/addresses/${addressId}`),
+    api.get<APIAddress>(`/api/v1/users/${encodeURIComponent(phone)}/addresses/${encodeURIComponent(addressId)}`),
   
   createAddress: (phone: string, data: { label: string; address: string; lat: number; lng: number }) =>
-    api.post<APIAddress>(`/api/v1/users/${phone}/addresses`, data),
+    api.post<APIAddress>(`/api/v1/users/${encodeURIComponent(phone)}/addresses`, data),
   
   updateAddress: (
     phone: string,
     addressId: string,
     data: { label?: string; address?: string; lat?: number; lng?: number }
-  ) => api.put<APIAddress>(`/api/v1/users/${phone}/addresses/${addressId}`, data),
+  ) => api.put<APIAddress>(`/api/v1/users/${encodeURIComponent(phone)}/addresses/${encodeURIComponent(addressId)}`, data),
   
   deleteAddress: (phone: string, addressId: string) =>
-    api.delete<{ message: string }>(`/api/v1/users/${phone}/addresses/${addressId}`),
+    api.delete<{ message: string }>(`/api/v1/users/${encodeURIComponent(phone)}/addresses/${encodeURIComponent(addressId)}`),
 };
 
 export const orderAPI = {
-  getOrder: (orderId: string) => api.get<APIOrder>(`/api/v1/orders/${orderId}`),
+  getOrder: (orderId: string) => api.get<APIOrder>(`/api/v1/orders/${encodeURIComponent(orderId)}`),
   
   listOrders: (params: { customerPhone?: string; restaurantId?: string; riderId?: string; limit?: number }) => {
     const query = new URLSearchParams();
@@ -202,5 +207,5 @@ export const orderAPI = {
   }) => api.post<APIOrder>('/api/v1/orders', data),
   
   updateOrderStatus: (orderId: string, data: { status: string; riderId?: string }) =>
-    api.put<APIOrder>(`/api/v1/orders/${orderId}/status`, data),
+    api.put<APIOrder>(`/api/v1/orders/${encodeURIComponent(orderId)}/status`, data),
 };

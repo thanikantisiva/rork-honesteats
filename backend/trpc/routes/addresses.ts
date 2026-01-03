@@ -1,37 +1,29 @@
 import * as z from 'zod';
 import { createTRPCRouter, publicProcedure } from '../create-context';
-import { getDynamoClient, TABLES, generateId } from '@/backend/db';
-import { PutCommand, GetCommand, QueryCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { addressAPI } from '@/lib/api';
 
 export const addressesRouter = createTRPCRouter({
   list: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {
-      const db = getDynamoClient();
-      
-      const result = await db.send(new QueryCommand({
-        TableName: TABLES.ADDRESSES,
-        IndexName: 'userId-index',
-        KeyConditionExpression: 'userId = :userId',
-        ExpressionAttributeValues: {
-          ':userId': input.userId,
-        },
-      }));
+      try {
+        const { addresses } = await addressAPI.listAddresses(input.userId);
 
-      const addresses = result.Items || [];
-      addresses.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-
-      return addresses.map((addr: any) => ({
-        id: addr.id,
-        type: addr.type,
-        nickname: addr.nickname,
-        address: addr.address,
-        landmark: addr.landmark,
-        coordinates: {
-          lat: addr.lat,
-          lng: addr.lng,
-        },
-      }));
+        return addresses.map((addr) => ({
+          id: addr.addressId,
+          type: (addr.label as 'Home' | 'Work' | 'Other') || 'Home',
+          nickname: addr.label,
+          address: addr.address,
+          landmark: '',
+          coordinates: {
+            lat: addr.lat,
+            lng: addr.lng,
+          },
+        }));
+      } catch (error) {
+        console.error('Failed to fetch addresses:', error);
+        return [];
+      }
     }),
 
   create: publicProcedure
@@ -45,32 +37,19 @@ export const addressesRouter = createTRPCRouter({
       lng: z.number(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDynamoClient();
-
-      const addressId = generateId();
-      const addr = {
-        id: addressId,
-        userId: input.userId,
-        type: input.type,
-        nickname: input.nickname,
+      const addr = await addressAPI.createAddress(input.userId, {
+        label: input.nickname || input.type,
         address: input.address,
-        landmark: input.landmark,
         lat: input.lat,
         lng: input.lng,
-        createdAt: Date.now(),
-      };
-
-      await db.send(new PutCommand({
-        TableName: TABLES.ADDRESSES,
-        Item: addr,
-      }));
+      });
 
       return {
-        id: addr.id,
-        type: addr.type,
-        nickname: addr.nickname,
+        id: addr.addressId,
+        type: input.type,
+        nickname: addr.label,
         address: addr.address,
-        landmark: addr.landmark,
+        landmark: input.landmark,
         coordinates: {
           lat: addr.lat,
           lng: addr.lng,
@@ -81,6 +60,7 @@ export const addressesRouter = createTRPCRouter({
   update: publicProcedure
     .input(z.object({
       id: z.string(),
+      userId: z.string(),
       type: z.enum(['Home', 'Work', 'Other']).optional(),
       nickname: z.string().optional(),
       address: z.string().optional(),
@@ -89,68 +69,22 @@ export const addressesRouter = createTRPCRouter({
       lng: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDynamoClient();
-      const { id, ...updates } = input;
+      const { id, userId, type, nickname, address, landmark, lat, lng } = input;
 
-      const updateExpression: string[] = [];
-      const expressionAttributeNames: Record<string, string> = {};
-      const expressionAttributeValues: Record<string, any> = {};
+      const updateData: any = {};
+      if (nickname) updateData.label = nickname;
+      if (address) updateData.address = address;
+      if (lat !== undefined) updateData.lat = lat;
+      if (lng !== undefined) updateData.lng = lng;
 
-      if (updates.type) {
-        updateExpression.push('#type = :type');
-        expressionAttributeNames['#type'] = 'type';
-        expressionAttributeValues[':type'] = updates.type;
-      }
-      if (updates.nickname !== undefined) {
-        updateExpression.push('#nickname = :nickname');
-        expressionAttributeNames['#nickname'] = 'nickname';
-        expressionAttributeValues[':nickname'] = updates.nickname;
-      }
-      if (updates.address) {
-        updateExpression.push('#address = :address');
-        expressionAttributeNames['#address'] = 'address';
-        expressionAttributeValues[':address'] = updates.address;
-      }
-      if (updates.landmark !== undefined) {
-        updateExpression.push('#landmark = :landmark');
-        expressionAttributeNames['#landmark'] = 'landmark';
-        expressionAttributeValues[':landmark'] = updates.landmark;
-      }
-      if (updates.lat) {
-        updateExpression.push('#lat = :lat');
-        expressionAttributeNames['#lat'] = 'lat';
-        expressionAttributeValues[':lat'] = updates.lat;
-      }
-      if (updates.lng) {
-        updateExpression.push('#lng = :lng');
-        expressionAttributeNames['#lng'] = 'lng';
-        expressionAttributeValues[':lng'] = updates.lng;
-      }
-
-      await db.send(new UpdateCommand({
-        TableName: TABLES.ADDRESSES,
-        Key: { id },
-        UpdateExpression: `SET ${updateExpression.join(', ')}`,
-        ExpressionAttributeNames: expressionAttributeNames,
-        ExpressionAttributeValues: expressionAttributeValues,
-      }));
-
-      const result = await db.send(new GetCommand({
-        TableName: TABLES.ADDRESSES,
-        Key: { id },
-      }));
-
-      const addr = result.Item;
-      if (!addr) {
-        throw new Error('Address not found');
-      }
+      const addr = await addressAPI.updateAddress(userId, id, updateData);
 
       return {
-        id: addr.id,
-        type: addr.type,
-        nickname: addr.nickname,
+        id: addr.addressId,
+        type: type || 'Home',
+        nickname: addr.label,
         address: addr.address,
-        landmark: addr.landmark,
+        landmark: landmark,
         coordinates: {
           lat: addr.lat,
           lng: addr.lng,
@@ -159,13 +93,12 @@ export const addressesRouter = createTRPCRouter({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ 
+      id: z.string(),
+      userId: z.string(),
+    }))
     .mutation(async ({ input }) => {
-      const db = getDynamoClient();
-      await db.send(new DeleteCommand({
-        TableName: TABLES.ADDRESSES,
-        Key: { id: input.id },
-      }));
+      await addressAPI.deleteAddress(input.userId, input.id);
       return { success: true };
     }),
 });
