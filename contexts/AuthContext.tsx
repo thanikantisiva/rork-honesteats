@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
-import { userAPI } from '@/lib/api';
+import { userAPI, APIError } from '@/lib/api';
 
 const USER_STORAGE_KEY = '@user';
 const TOKEN_STORAGE_KEY = '@token';
@@ -62,9 +62,20 @@ export const [AuthContext, useAuth] = createContextHook(() => {
           
           setUser(existingUser);
           setToken(phone);
-          console.log('[MOCK] Login completed successfully');
+          console.log('[MOCK] Login completed successfully - existing user');
           return { success: true, isNewUser: false };
-        } catch {
+        } catch (error: any) {
+          // Check if it's a 404 error (user not found)
+          if (error instanceof APIError && error.status === 404) {
+            console.log('[MOCK] User not found (404), new user detected');
+            return { success: true, isNewUser: true };
+          }
+          // Also check for error message for backward compatibility
+          if (error.message?.includes('404') || error.message?.includes('not found') || error.message?.includes('User not found')) {
+            console.log('[MOCK] User not found (from error message), new user detected');
+            return { success: true, isNewUser: true };
+          }
+          // For any other error, treat as new user in test mode
           console.log('[MOCK] User not found, new user detected');
           return { success: true, isNewUser: true };
         }
@@ -91,11 +102,17 @@ export const [AuthContext, useAuth] = createContextHook(() => {
         
         setUser(existingUser);
         setToken(phone);
-        console.log('Login completed successfully');
+        console.log('Login completed successfully - existing user');
         return { success: true, isNewUser: false };
       } catch (error: any) {
-        if (error.message?.includes('404') || error.message?.includes('not found')) {
+        // Check if it's a 404 error (user not found)
+        if (error instanceof APIError && error.status === 404) {
           console.log('User not found (404), new user detected');
+          return { success: true, isNewUser: true };
+        }
+        // Also check for error message containing 404 or "not found" for backward compatibility
+        if (error.message?.includes('404') || error.message?.includes('not found') || error.message?.includes('User not found')) {
+          console.log('User not found (from error message), new user detected');
           return { success: true, isNewUser: true };
         }
         throw error;

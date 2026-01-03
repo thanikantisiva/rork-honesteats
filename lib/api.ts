@@ -6,6 +6,18 @@ export interface APIResponse<T> {
   message?: string;
 }
 
+export class APIError extends Error {
+  status: number;
+  data?: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 class APIClient {
   private baseURL: string;
 
@@ -37,7 +49,8 @@ class APIClient {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('[API] Error response:', errorData);
-      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+      const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}`;
+      throw new APIError(errorMessage, response.status, errorData);
     }
 
     const data = await response.json();
