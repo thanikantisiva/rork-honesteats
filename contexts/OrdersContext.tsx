@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Order, CartItem, Address, Restaurant } from '@/types';
 import { orderAPI, APIOrder, APIOrderItem } from '@/lib/api';
 import { useAuth } from './AuthContext';
-import { mockRestaurants } from '@/mocks/restaurants';
 
 const ORDERS_STORAGE_KEY = '@orders';
 
@@ -27,13 +26,11 @@ export const [OrdersContext, useOrders] = createContextHook(() => {
       console.log('[OrdersContext] Received orders:', response.orders.length);
       
       const apiOrders: Order[] = response.orders.map((apiOrder: APIOrder) => {
-        const restaurant = mockRestaurants.find(r => r.id === apiOrder.restaurantId);
-        
         return {
         id: apiOrder.orderId,
         restaurantId: apiOrder.restaurantId,
-        restaurantName: restaurant?.name || 'Restaurant',
-        restaurantImage: restaurant?.image || '',
+        restaurantName: 'Restaurant',
+        restaurantImage: '',
         items: apiOrder.items.map((item: APIOrderItem) => ({
           menuItem: {
             id: item.itemId,

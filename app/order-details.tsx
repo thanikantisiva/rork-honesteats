@@ -13,8 +13,7 @@ import { orderAPI, restaurantAPI } from '@/lib/api';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAddresses } from '@/contexts/AddressContext';
 import { useCart } from '@/contexts/CartContext';
-import { MenuItem } from '@/types';
-import { mockRestaurants } from '@/mocks/restaurants';
+import { MenuItem, Restaurant } from '@/types';
 
 export default function OrderDetailsScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
@@ -43,12 +42,11 @@ export default function OrderDetailsScreen() {
     mutationFn: async () => {
       if (!order || !menuItems || !restaurant) return;
 
-      const mockData = mockRestaurants.find(m => m.name === restaurant.name) || mockRestaurants[0];
-      const restaurantData = {
+      const restaurantData: Restaurant = {
         id: restaurant.restaurantId,
         name: restaurant.name,
-        image: mockData.image,
-        cuisine: ['Food'],
+        image: restaurant.restaurantImage || '',
+        cuisine: restaurant.cuisine || [],
         rating: 4.5,
         totalRatings: 100,
         deliveryTime: '30-40 mins',
@@ -56,7 +54,7 @@ export default function OrderDetailsScreen() {
         minOrder: 100,
         distance: '2 km',
         isPureVeg: false,
-        offers: mockData.offers,
+        offers: [],
       };
 
       clearCart();

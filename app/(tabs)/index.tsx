@@ -1,63 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Image, Modal, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Search, MapPin, Star, Clock, ChevronDown, Plus } from 'lucide-react-native';
-import { mockRestaurants } from '@/mocks/restaurants';
 import { Restaurant } from '@/types';
 import { useAddresses } from '@/contexts/AddressContext';
-import { restaurantAPI, APIRestaurant } from '@/lib/api';
+import { trpc } from '@/lib/trpc';
 
 export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { addresses, selectedAddress, selectAddress } = useAddresses();
 
-  useEffect(() => {
-    loadRestaurants();
-  }, []);
-
-  const loadRestaurants = async () => {
-    setIsLoading(true);
-    try {
-      const response = await restaurantAPI.listRestaurants();
-      const apiRestaurants: Restaurant[] = response.restaurants.map((apiRest: APIRestaurant) => {
-        const mockData = mockRestaurants.find(m => m.name === apiRest.name) || mockRestaurants[0];
-        return {
-          id: apiRest.restaurantId,
-          name: apiRest.name,
-          image: mockData.image,
-          cuisine: ['Food'],
-          rating: 4.5,
-          totalRatings: 100,
-          deliveryTime: '30-40 mins',
-          deliveryFee: 30,
-          minOrder: 100,
-          distance: '2 km',
-          isPureVeg: false,
-          offers: mockData.offers,
-        };
-      });
-      
-      if (apiRestaurants.length > 0) {
-        setRestaurants(apiRestaurants);
-      } else {
-        setRestaurants(mockRestaurants);
-      }
-    } catch (error) {
-      console.error('Failed to load restaurants from API:', error);
-      setRestaurants(mockRestaurants);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const filteredRestaurants = restaurants.filter((restaurant) =>
-    restaurant.name.toLowerCase().includes(search.toLowerCase()) ||
-    restaurant.cuisine.some((c) => c.toLowerCase().includes(search.toLowerCase()))
-  );
+  const restaurantsQuery = trpc.restaurants.list.useQuery({ search });
+  const restaurants = restaurantsQuery.data || [];
 
   const handleRestaurantPress = (restaurant: Restaurant) => {
     router.push(`/restaurant/${restaurant.id}` as any);
@@ -112,14 +68,14 @@ export default function HomeScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>All Restaurants</Text>
 
-        {isLoading ? (
+        {restaurantsQuery.isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#EF4444" />
             <Text style={styles.loadingText}>Loading restaurants...</Text>
           </View>
         ) : (
           <View style={styles.restaurantList}>
-            {filteredRestaurants.map((restaurant) => (
+            {restaurants.map((restaurant) => (
             <TouchableOpacity
               key={restaurant.id}
               style={styles.restaurantCard}

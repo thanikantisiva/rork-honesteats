@@ -30,7 +30,7 @@ export const restaurantsRouter = createTRPCRouter({
         deliveryTime: '30-40 min',
         deliveryFee: 50,
         minOrder: 0,
-        distance: 2.5,
+        distance: '2.5 km',
         isPureVeg: false,
         offers: [],
       }));
@@ -51,7 +51,7 @@ export const restaurantsRouter = createTRPCRouter({
         deliveryTime: '30-40 min',
         deliveryFee: 50,
         minOrder: 0,
-        distance: 2.5,
+        distance: '2.5 km',
         isPureVeg: false,
         offers: [],
       };

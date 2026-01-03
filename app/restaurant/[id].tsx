@@ -1,59 +1,23 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Star, Clock, MapPin, Plus, Minus, ShoppingCart } from 'lucide-react-native';
-import { mockRestaurants, getRestaurantMenu } from '@/mocks/restaurants';
 import { useCart } from '@/contexts/CartContext';
 import { MenuItem } from '@/types';
-import { restaurantAPI, APIMenuItem } from '@/lib/api';
+import { trpc } from '@/lib/trpc';
 
 export default function RestaurantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { addItem, removeItem, getItemQuantity, itemCount, total, restaurant: cartRestaurant } = useCart();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
 
-  const restaurant = mockRestaurants.find((r) => r.id === id);
+  const restaurantQuery = trpc.restaurants.getById.useQuery({ id: id || '' }, { enabled: !!id });
+  const menuItemsQuery = trpc.restaurants.getMenuItems.useQuery({ restaurantId: id || '' }, { enabled: !!id });
 
-  const loadMenuItems = useCallback(async () => {
-    if (!id) return;
-    
-    setIsLoadingMenu(true);
-    try {
-      const response = await restaurantAPI.listMenuItems(id);
-      const apiMenuItems: MenuItem[] = response.items.map((apiItem: APIMenuItem) => ({
-        id: apiItem.item_id,
-        restaurantId: apiItem.restaurant_id,
-        name: apiItem.name,
-        description: apiItem.description || '',
-        price: apiItem.price,
-        category: 'Main Course',
-        isVeg: apiItem.isVeg,
-        isAvailable: apiItem.isAvailable,
-        image: undefined,
-      }));
-      
-      if (apiMenuItems.length > 0) {
-        setMenuItems(apiMenuItems);
-      } else {
-        setMenuItems(getRestaurantMenu(id));
-      }
-    } catch (error) {
-      console.error('Failed to load menu items from API:', error);
-      setMenuItems(getRestaurantMenu(id));
-    } finally {
-      setIsLoadingMenu(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (id) {
-      loadMenuItems();
-    }
-  }, [id, loadMenuItems]);
+  const restaurant = restaurantQuery.data;
 
   const groupedMenu = useMemo(() => {
+    const menuItems = menuItemsQuery.data || [];
     const groups: Record<string, MenuItem[]> = {};
     menuItems.forEach((item) => {
       if (!groups[item.category]) {
@@ -62,7 +26,7 @@ export default function RestaurantScreen() {
       groups[item.category].push(item);
     });
     return groups;
-  }, [menuItems]);
+  }, [menuItemsQuery.data]);
 
   if (!restaurant) {
     return (
@@ -136,7 +100,7 @@ export default function RestaurantScreen() {
 
           <View style={styles.menuSection}>
             <Text style={styles.menuTitle}>Menu</Text>
-            {isLoadingMenu ? (
+            {menuItemsQuery.isLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#EF4444" />
                 <Text style={styles.loadingText}>Loading menu...</Text>
