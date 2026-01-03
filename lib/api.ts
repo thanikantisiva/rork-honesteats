@@ -149,13 +149,13 @@ export interface APIOrder {
 }
 
 export const userAPI = {
-  getUser: (phone: string) => api.get<APIUser>(`/api/v1/users/${encodeURIComponent(phone)}`),
+  getUser: (phone: string) => api.get<APIUser>(`/api/v1/users/${phone}`),
   
   createUser: (data: { phone: string; name?: string; email?: string; dateOfBirth?: string }) =>
     api.post<APIUser>('/api/v1/users', data),
   
   updateUser: (phone: string, data: { name?: string; email?: string; isActive?: boolean; dateOfBirth?: string }) =>
-    api.put<APIUser>(`/api/v1/users/${encodeURIComponent(phone)}`, data),
+    api.put<APIUser>(`/api/v1/users/${phone}`, data),
 };
 
 export const restaurantAPI = {
@@ -177,23 +177,23 @@ export const restaurantAPI = {
 export const addressAPI = {
   listAddresses: (phone: string) =>
     api.get<{ phone: string; addresses: APIAddress[]; total: number }>(
-      `/api/v1/users/${encodeURIComponent(phone)}/addresses`
+      `/api/v1/users/${phone}/addresses`
     ),
   
   getAddress: (phone: string, addressId: string) =>
-    api.get<APIAddress>(`/api/v1/users/${encodeURIComponent(phone)}/addresses/${encodeURIComponent(addressId)}`),
+    api.get<APIAddress>(`/api/v1/users/${phone}/addresses/${addressId}`),
   
   createAddress: (phone: string, data: { label: string; address: string; lat: number; lng: number }) =>
-    api.post<APIAddress>(`/api/v1/users/${encodeURIComponent(phone)}/addresses`, data),
+    api.post<APIAddress>(`/api/v1/users/${phone}/addresses`, data),
   
   updateAddress: (
     phone: string,
     addressId: string,
     data: { label?: string; address?: string; lat?: number; lng?: number }
-  ) => api.put<APIAddress>(`/api/v1/users/${encodeURIComponent(phone)}/addresses/${encodeURIComponent(addressId)}`, data),
+  ) => api.put<APIAddress>(`/api/v1/users/${phone}/addresses/${addressId}`, data),
   
   deleteAddress: (phone: string, addressId: string) =>
-    api.delete<{ message: string }>(`/api/v1/users/${encodeURIComponent(phone)}/addresses/${encodeURIComponent(addressId)}`),
+    api.delete<{ message: string }>(`/api/v1/users/${phone}/addresses/${addressId}`),
 };
 
 export const orderAPI = {
