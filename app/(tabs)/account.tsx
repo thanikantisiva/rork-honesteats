@@ -3,7 +3,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { User, MapPin, Heart, CreditCard, HelpCircle, Settings, LogOut, ChevronRight } from 'lucide-react-native';
 
+
+
 export default function AccountScreen() {
+
+  
   const { user, logout } = useAuth();
   const router = useRouter();
 
