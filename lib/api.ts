@@ -163,15 +163,15 @@ export const restaurantAPI = {
     api.get<{ restaurants: APIRestaurant[]; total: number }>('/api/v1/restaurants'),
   
   getRestaurant: (restaurantId: string) =>
-    api.get<APIRestaurant>(`/api/v1/restaurants/${encodeURIComponent(restaurantId)}`),
+    api.get<APIRestaurant>(`/api/v1/restaurants/${restaurantId}`),
   
   listMenuItems: (restaurantId: string) =>
     api.get<{ restaurantId: string; items: APIMenuItem[]; total: number }>(
-      `/api/v1/restaurants/${encodeURIComponent(restaurantId)}/menu`
+      `/api/v1/restaurants/${restaurantId}/menu`
     ),
   
   getMenuItem: (restaurantId: string, itemId: string) =>
-    api.get<APIMenuItem>(`/api/v1/restaurants/${encodeURIComponent(restaurantId)}/menu/${encodeURIComponent(itemId)}`),
+    api.get<APIMenuItem>(`/api/v1/restaurants/${restaurantId}/menu/${itemId}`),
 };
 
 export const addressAPI = {
@@ -197,16 +197,17 @@ export const addressAPI = {
 };
 
 export const orderAPI = {
-  getOrder: (orderId: string) => api.get<APIOrder>(`/api/v1/orders/${encodeURIComponent(orderId)}`),
+  getOrder: (orderId: string) => api.get<APIOrder>(`/api/v1/orders/${orderId}`),
   
   listOrders: (params: { customerPhone?: string; restaurantId?: string; riderId?: string; limit?: number }) => {
-    const query = new URLSearchParams();
-    if (params.customerPhone) query.append('customerPhone', params.customerPhone);
-    if (params.restaurantId) query.append('restaurantId', params.restaurantId);
-    if (params.riderId) query.append('riderId', params.riderId);
-    if (params.limit) query.append('limit', String(params.limit));
+    const queryParts: string[] = [];
+    if (params.customerPhone) queryParts.push(`customerPhone=${params.customerPhone}`);
+    if (params.restaurantId) queryParts.push(`restaurantId=${params.restaurantId}`);
+    if (params.riderId) queryParts.push(`riderId=${params.riderId}`);
+    if (params.limit) queryParts.push(`limit=${params.limit}`);
     
-    return api.get<{ orders: APIOrder[]; total: number }>(`/api/v1/orders?${query.toString()}`);
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+    return api.get<{ orders: APIOrder[]; total: number }>(`/api/v1/orders${queryString}`);
   },
   
   createOrder: (data: {
@@ -220,5 +221,5 @@ export const orderAPI = {
   }) => api.post<APIOrder>('/api/v1/orders', data),
   
   updateOrderStatus: (orderId: string, data: { status: string; riderId?: string }) =>
-    api.put<APIOrder>(`/api/v1/orders/${encodeURIComponent(orderId)}/status`, data),
+    api.put<APIOrder>(`/api/v1/orders/${orderId}/status`, data),
 };

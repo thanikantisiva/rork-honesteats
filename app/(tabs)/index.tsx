@@ -44,6 +44,8 @@ export default function HomeScreen() {
               <Text style={styles.locationText} numberOfLines={1}>
                 {selectedAddress ? (
                   selectedAddress.nickname || selectedAddress.type
+                ) : addresses.length === 0 ? (
+                  'Add delivery address'
                 ) : (
                   'Select delivery address'
                 )}
